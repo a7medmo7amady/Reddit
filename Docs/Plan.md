@@ -1,0 +1,9 @@
+- [ ] SRS:
+- [ ] Schema
+- [ ] C4
+- [ ] ADRs (per service)
+- [ ] API Specifications
+- [ ] Resilience strategies:
+	- [ ] Circuit breaker patterns 
+	- [ ] fallback strategies
+- [ ] Presentations
