@@ -75,12 +75,39 @@ workspace "Reddit Clone" {
             }
             ChatApp -> ChatMongo "Reads/writes chat messages"
         }
-        FeedService = container "Feed service" {
-            FeedApp = component "Feed app"
-            FeedMongo = component "Feed MongoDB" {
+        FeedService = container "Feed Service" "Aggregates, ranks, and serves personalized and discovery feeds." "Go" {
+            feedController    = component "Feed Controller"     "Exposes REST: GET /feed/home, /feed/community/{id}, /feed/popular, /feed/all. Supports sort params: hot, new, rising, controversial. Returns batches of 25 posts with cursor for infinite scroll."
+            authFeedBuilder   = component "Auth Feed Builder"  "Builds personalized Home Feed for authenticated users using a ranking algorithm based on subscription history, vote history, view history, and Not Interested signals. Excludes hidden communities."
+            guestFeedBuilder  = component "Guest Feed Builder" "Serves default curated feed for guests. Guests can also navigate to Popular/All discovery feeds. Injects sticky sign-up banner into response."
+            communityFeed     = component "Community Feed"     "Scopes feed to a single community. Pins up to 2 pinned posts at top regardless of sort. Returns community sidebar: description, rules, moderators, member count, creation date."
+            discoveryFeed     = component "Discovery Feed"     "Popular: trending posts detected using a Count-Min Sketch to estimate post engagement frequency with low memory overhead. All: pure chronological feed of all new posts. Both available to guests and authenticated users."
+            votingHandler     = component "Voting Handler"     "Authenticated users upvote/downvote once per post/comment. Toggle same vote to remove. Optimistic client update reconciled server-side. Updates karma in real time."
+            personalization   = component "Personalization"    "Records viewed post IDs, vote history, community prefs per user. Applies hide-community and Not Interested down-ranking signals to Home Feed."
+            kafkaConsumer     = component "Kafka Consumer"     "Subscribes to post.created and post.deleted events to update feed indexes."
+            FeedMongo         = component "Feed MongoDB"       "Stores posts, vote records, personalization signals, and view history." {
                 tags "Database"
             }
-            FeedApp -> FeedMongo "Reads/writes posts, comments, votes"
+            FeedRedis         = component "Feed Redis"         "Caches ranked feed results. TTL: 60s for Hot/Rising; no cache for New (real-time). Supports ≥10,000 concurrent requests/sec at peak." {
+                tags "Database"
+            }
+
+            feedController  -> authFeedBuilder  "Authenticated user request"
+            feedController  -> guestFeedBuilder "Guest default feed request"
+            guestFeedBuilder -> discoveryFeed  "Guest navigates Popular / All"
+            feedController  -> communityFeed    "Community-scoped request"
+            feedController  -> discoveryFeed    "Popular / All request"
+            authFeedBuilder -> personalization  "Apply user signals"
+            authFeedBuilder -> FeedRedis        "Read/write cached feed"
+            authFeedBuilder -> FeedMongo        "Query posts when cache miss"
+            communityFeed   -> FeedRedis        "Read/write cached feed"
+            communityFeed   -> FeedMongo        "Query posts when cache miss"
+            discoveryFeed   -> FeedRedis        "Read/write cached feed"
+            discoveryFeed   -> FeedMongo        "Query posts when cache miss"
+            votingHandler   -> FeedMongo        "Write vote record"
+            votingHandler   -> FeedRedis        "Invalidate affected feed cache"
+            personalization -> FeedMongo        "Read/write user signals"
+            kafkaConsumer   -> FeedMongo        "Index new / remove deleted posts"
+            kafkaConsumer   -> FeedRedis        "Invalidate cache on new post"
         }
         VideoService = container "Video service" {
             VideoApp = component "Video app"
