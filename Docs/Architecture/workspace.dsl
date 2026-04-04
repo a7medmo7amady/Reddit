@@ -20,28 +20,33 @@ workspace "Reddit Clone" {
             SearchController  -> SearchMongo       "Queries index"
             SearchIndexer     -> SearchMongo       "Indexes / removes documents"
         }
-        UserService = container "User service" {
-            RegistrationHandler = component "Registration Handler" "Validates username (3-20 chars), email, password (min 8 chars). Sends verification email. Username is permanent."
-            AuthHandler         = component "Auth Handler" "Password login issues JWT (15 min) + refresh token (30 days, httpOnly cookie). Rotates refresh token on every use. Detects token family reuse and invalidates session."
-            OAuthHandler        = component "OAuth Handler" "Handles OAuth 2.0 login via Google. Delegates to external provider, then issues internal JWT."
-            SessionManager      = component "Session Manager" "Tracks active sessions. Allows users to view and revoke sessions. Enforces rate limiting: max 10 failed attempts/IP/15 min then 15-min lockout."
-            ProfileHandler      = component "Profile Handler" "Serves public profile: avatar, banner, display name, karma, account age, bio, links (up to 3). Tabs: Posts, Comments, Saved, Hidden, Upvoted."
-            AccountSettings     = component "Account Settings Handler" "Change email (re-verification required), password, display name. Enable/disable 2FA via TOTP. Manage notification preferences."
-            FollowBlockHandler  = component "Follow & Block Handler" "Follow users for Following feed. Block hides content and prevents messages/mentions. Blocked list is private."
-            ModerationHandler   = component "Moderation Handler" "Moderator actions: remove post/comment, ban user, set rules — all logged in mod log. Admins can suspend or permanently ban accounts."
-            UserPostgres        = component "User Postgres" "Stores users, sessions, follows, blocks, roles, mod logs." {
-                tags "Database"
-            }
+  UserService = container "User service" {
+    RegistrationHandler = component "Registration Handler" "Validates username (3-20 chars), email, password (min 8 chars). Sends verification email. Username is permanent."
+    AuthHandler         = component "Auth Handler" "Password login issues JWT (15 min) + refresh token (30 days, httpOnly cookie). Rotates refresh token on every use. Detects token family reuse and invalidates session."
+    OAuthHandler        = component "OAuth Handler" "Handles OAuth 2.0 login via Google. Delegates to external provider, then issues internal JWT."
+    SessionManager      = component "Session Manager" "Tracks active sessions. Allows users to view and revoke sessions. Enforces rate limiting: max 10 failed attempts/IP/15 min then 15-min lockout."
+    ProfileHandler      = component "Profile Handler" "Serves public profile: avatar, banner, display name, karma, account age, bio, links (up to 3). Tabs: Posts, Comments, Saved, Hidden, Upvoted."
+    AccountSettings     = component "Account Settings Handler" "Change email (re-verification required), password, display name. Enable/disable 2FA via TOTP. Manage notification preferences."
+    FollowBlockHandler  = component "Follow & Block Handler" "Follow users for Following feed. Block hides content and prevents messages/mentions. Blocked list is private."
+    ModerationHandler   = component "Moderation Handler" "Moderator actions: remove post/comment, ban user, set rules — all logged in mod log. Admins can suspend or permanently ban accounts."
+    UserPostgres        = component "User Postgres" "Stores users, sessions, follows, blocks, roles, community memberships." {
+        tags "Database"
+    }
+    UserMongo           = component "User MongoDB" "Stores posts, comments and mod logs." {
+        tags "Database"
+    }
 
-            RegistrationHandler -> UserPostgres    "Reads/writes user accounts"
-            AuthHandler         -> UserPostgres    "Reads/writes sessions and tokens"
-            OAuthHandler        -> UserPostgres    "Upserts OAuth-linked accounts"
-            SessionManager      -> UserPostgres    "Reads/writes active sessions"
-            ProfileHandler      -> UserPostgres    "Reads user profiles and karma"
-            AccountSettings     -> UserPostgres    "Updates account settings and 2FA"
-            FollowBlockHandler  -> UserPostgres    "Reads/writes follows and blocks"
-            ModerationHandler   -> UserPostgres    "Reads/writes roles and mod logs"
-        }
+    RegistrationHandler -> UserPostgres "Reads/writes user accounts"
+    AuthHandler         -> UserPostgres "Reads/writes sessions and tokens"
+    OAuthHandler        -> UserPostgres "Upserts OAuth-linked accounts"
+    SessionManager      -> UserPostgres "Reads/writes active sessions"
+    ProfileHandler      -> UserPostgres "Reads user data and community info"
+    ProfileHandler      -> UserMongo    "Reads posts and comments for profile tabs"
+    AccountSettings     -> UserPostgres "Updates account settings and 2FA"
+    FollowBlockHandler  -> UserPostgres "Reads/writes follows and blocks"
+    ModerationHandler   -> UserPostgres "Reads/writes roles"
+    ModerationHandler   -> UserMongo    "Writes mod log entries"
+}
         UploadService = container "Upload service" {
             UploadApp = component "Upload app"
             UploadMongo = component "Upload MongoDB" {
