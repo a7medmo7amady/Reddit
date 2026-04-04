@@ -1,0 +1,89 @@
+erDiagram
+    USER {
+        int id PK
+        string username
+        string password
+        string nickname
+        string email
+        string profileImage
+    }
+
+    SUBREDDIT {
+        int id PK
+        string name
+        string description
+    }
+
+    POST {
+        int id PK
+        string content
+        string media
+        int totalVotes
+        int user_id FK
+        int subreddit_id FK
+        datetime createdAt
+    }
+
+    COMMENT {
+        int id PK
+        string content
+        int totalVotes
+        int user_id FK
+        int post_id FK
+        datetime createdAt
+    }
+
+    FOLLOW {
+        int follower_id FK
+        int following_id FK
+    }
+
+    USER_SUBREDDIT {
+        int user_id FK
+        int subreddit_id FK
+    }
+
+    VIDEO {
+        int id PK
+        string title
+        string url
+        int user_id FK
+        int totalViews
+        datetime createdAt
+    }
+
+
+
+    CHAT {
+        int id PK
+        int sender_id FK
+        int receiver_id FK
+        string message
+        datetime createdAt
+    }
+USER_POST_VOTE {
+        int user_id FK
+        int post_id FK
+        bool value
+    }
+
+    USER_COMMENT_VOTE {
+        int user_id FK
+        int comment_id FK
+        bool value
+    }
+USER ||--o{ USER_POST_VOTE : "votes"
+    POST ||--o{ USER_POST_VOTE : "voted by"
+    USER ||--o{ USER_COMMENT_VOTE : "votes"
+    COMMENT ||--o{ USER_COMMENT_VOTE : "voted by"
+    USER ||--o{ POST : "creates"
+    USER ||--o{ COMMENT : "writes"
+    USER ||--o{ VIDEO : "uploads"
+    USER ||--o{ CHAT : "sends"
+    USER ||--o{ CHAT : "receives"
+    USER ||--o{ FOLLOW : "has follower"
+    USER ||--o{ FOLLOW : "following"
+    USER ||--o{ USER_SUBREDDIT : "joins"
+    SUBREDDIT ||--o{ POST : "contains"
+    SUBREDDIT ||--o{ USER_SUBREDDIT : "has"
+    POST ||--o{ COMMENT : "has"
