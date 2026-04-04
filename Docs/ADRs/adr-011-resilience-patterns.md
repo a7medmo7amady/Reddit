@@ -16,7 +16,7 @@ Implement the following resilience patterns:
 | **Circuit Breaker** | Library-based (e.g., Resilience4j for Spring Boot, `opossum` for Node.js) | All outbound gRPC and HTTP calls |
 | **Retries** | Exponential backoff with jitter, max 3 attempts | Idempotent requests (reads, search queries) |
 | **Timeouts** | Hard timeout per call (default 3 s for gRPC, 5 s for HTTP) | All inter-service calls |
-| **Bulkhead** | Thread/connection pool isolation per downstream | Feed → User Service, Upload → User Service |
+
 
 **Circuit breaker states:**
 - **Closed** → normal operation
