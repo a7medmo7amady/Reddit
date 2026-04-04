@@ -46,12 +46,27 @@ workspace "Reddit Clone" {
     ModerationHandler   -> UserPostgres "Reads/writes roles"
     ModerationHandler   -> UserMongo    "Writes mod log entries"
 }
-        UploadService = container "Upload service" {
-            UploadApp = component "Upload app"
-            UploadMongo = component "Upload MongoDB" {
+        UploadService = container "Upload Service" "Handles post creation, media processing, and CDN delivery." "Node.js" {
+            postController     = component "Post Controller"      "Exposes REST: POST /posts, PATCH /posts/{id}, DELETE /posts/{id}. Enforces required fields: title (1-300 chars), community. Optional: flair, NSFW, Spoiler, OC badge. Post types: Text, Image, Link, Video."
+            authClient         = component "Auth Client"          "Validates JWT and checks community ban status via UserService before allowing post creation."
+            imageProcessor     = component "Image Processor"      "Accepts JPEG/PNG/GIF/WebP up to 20MB, max 5 images per gallery. Strips EXIF metadata, converts to WebP, resizes to 3 breakpoints: thumbnail 140px, preview 640px, full 1080px. Returns pre-signed CDN URL. Target: response within 3s for files ≤5MB."
+            videoIntakeHandler = component "Video Intake Handler" "Accepts MP4/MOV/WebM (H.264/H.265), max 100MB, max duration 5 minutes. Validates format and constraints then enqueues async HLS transcoding job (360p, 720p, 1080p variants)."
+            postRepository     = component "Post Repository"      "Creates, updates, soft-deletes posts. Stores edit history (text/link posts only — media cannot be replaced). Deleted posts show [deleted] placeholder; content purged from storage within 24h."
+            storageClient      = component "Storage Client"       "Uploads processed media to S3 staging bucket. Returns pre-signed CDN URL with long-lived cache headers."
+            kafkaProducer      = component "Kafka Producer"       "Emits post.created and post.deleted events to the message broker."
+            UploadMongo        = component "Upload MongoDB"       "Stores post metadata, edit history, and draft documents." {
                 tags "Database"
             }
-            UploadApp -> UploadMongo "Reads/writes upload metadata and draft documents"
+
+            postController     -> authClient         "Validates JWT + ban status"
+            postController     -> imageProcessor     "On image post"
+            postController     -> videoIntakeHandler "On video post"
+            postController     -> postRepository     "Save post metadata (all post types)"
+            imageProcessor     -> storageClient      "Upload processed WebP"
+            videoIntakeHandler -> storageClient      "Upload raw video to staging bucket"
+            videoIntakeHandler -> kafkaProducer      "Emit video.uploaded event"
+            postRepository     -> UploadMongo        "Reads/writes post metadata and edit history"
+            postRepository     -> kafkaProducer      "Emit post.created / post.deleted"
         }
         ChatService = container "Chat service" {
             ChatApp = component "Chat app"
