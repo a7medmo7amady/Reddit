@@ -23,7 +23,7 @@
 | Pattern | Implementation | Justification |
 |---------|---------------|---------------|
 | Client reconnection | Exponential backoff (1 s → max 30 s) + jitter | Prevents thundering herd on server recovery |
-| Heartbeat | Server ping every 30 s; disconnect after 2 missed pongs | Detects dead connections and frees resources |
+| Heartbeat | Server ping every 30 s; disconnect after 2 missed pings | Detects dead connections and frees resources |
 | Missed message recovery | `GET /chat/{room}/messages?since={timestamp}` on reconnect | Ensures no messages lost during disconnection |
 | Single active player | Only one video/chat stream active at a time; scroll-away pauses | Prevents resource contention on client |
 
