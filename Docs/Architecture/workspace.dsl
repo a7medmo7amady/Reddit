@@ -89,12 +89,27 @@ workspace "Reddit Clone" {
             }
             VideoApp -> VideoMongo "Reads/writes video metadata"
         }
-        NotificationService = container "NotificationService" {
-            NotificationApp = component "Notification app"
-            NotificationMongo = component "Notification MongoDB" {
+        NotificationService = container "Notification Service" "Delivers in-app and email notifications for platform events." "Node.js" {
+            kafkaConsumer      = component "Kafka Consumer"        "Subscribes to events: post.reply, comment.reply, mention, dm.received, post.removed. Triggers appropriate notification flow."
+            notificationRouter = component "Notification Router"   "Decides delivery channel per event and user preference. In-app for all events; email only for DM when user is offline."
+            inAppHandler       = component "In-App Handler"        "Creates notification records. Pushes to client via WebSocket (shared with Chat). If user offline, queues in Redis for delivery on next connection. p95 delivery ≤2s for connected users."
+            emailHandler       = component "Email Handler"         "Sends transactional email for new DM when user is offline. Uses Nodemailer + SMTP (Mailtrap for dev, SES for prod)."
+            preferenceChecker  = component "Preference Checker"    "Checks user notification preferences before delivery. Respects global in-app on/off toggle from account settings."
+            retentionCleaner   = component "Retention Cleaner"     "Deletes notification records older than 30 days per user."
+            NotificationMongo  = component "Notification MongoDB"  "Stores notification records (type, summary, timestamp, read status). Retained 30 days." {
                 tags "Database"
             }
-            NotificationApp -> NotificationMongo "Reads/writes activity, audit, mod logs"
+            NotificationRedis  = component "Notification Redis"    "Queues notifications for offline users. Delivered on next WebSocket connection." {
+                tags "Database"
+            }
+
+            kafkaConsumer      -> notificationRouter  "Routes event"
+            notificationRouter -> preferenceChecker   "Check user preferences"
+            notificationRouter -> inAppHandler        "Trigger in-app notification"
+            notificationRouter -> emailHandler        "Trigger email (DM + offline only)"
+            inAppHandler       -> NotificationMongo   "Write notification record"
+            inAppHandler       -> NotificationRedis   "Queue if user offline"
+            retentionCleaner   -> NotificationMongo   "Delete records older than 30 days"
         }
         S3 = container "S3 Bucket"
 
