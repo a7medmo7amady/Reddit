@@ -5,11 +5,20 @@ workspace "Reddit Clone" {
         A = person "admin"
         R = softwareSystem "Reddit" {
         SearchService = container "Search service" {
-            SearchApp = component "Search app"
-            SearchMongo = component "Search MongoDB" {
+            SearchController  = component "Search Controller" "Exposes GET /search?q=&type=&date=&community="
+            SearchIndexer     = component "Search Indexer" "Indexes posts/comments on creation, removes on deletion."
+            FilterHandler     = component "Filter Handler" "Applies content type (Text, Image, Video) and date range (Week, Month, All Time) filters."
+            ScopedSearch      = component "Scoped Search Handler" "Narrows results to a specific community when community_id is provided."
+            PaginationHandler = component "Pagination Handler" "Returns 20 results per page with a cursor for Load More."
+            SearchMongo       = component "Search MongoDB" "Stores search index documents." {
                 tags "Database"
             }
-            SearchApp -> SearchMongo "Reads/writes search index documents"
+
+            SearchController  -> FilterHandler     "Applies filters"
+            SearchController  -> ScopedSearch      "Scopes to community if provided"
+            SearchController  -> PaginationHandler "Paginates results"
+            SearchController  -> SearchMongo       "Queries index"
+            SearchIndexer     -> SearchMongo       "Indexes / removes documents"
         }
         UserService = container "User service" {
             UserApp = component "User app"

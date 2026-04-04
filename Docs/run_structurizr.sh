@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR="$SCRIPT_DIR/Architecture"
 PORT=9090
-IMAGE="structurizr/lite"
+IMAGE="structurizr/structurizr"
 
 if [ ! -d "$WORKSPACE_DIR" ]; then
   echo "Error: workspace directory not found: $WORKSPACE_DIR"
@@ -18,4 +18,4 @@ fi
 docker run --rm -it \
   -p "${PORT}:8080" \
   -v "$WORKSPACE_DIR:/usr/local/structurizr" \
-  "$IMAGE"
+  "$IMAGE" local
