@@ -20,4 +20,9 @@ public class OAuthUserFactory extends UserFactory {
     public User createUser(String username, String email, String password) {
         return new User(username, email, password, displayName, null, avatar, null, Role.USER, provider);
     }
+
+    @Override
+    public User createOAuthUser(String username, String email, OAuthProvider provider) {
+        return new User(username, email, null, displayName, null, avatar, null, Role.USER, provider);
+    }
 }
