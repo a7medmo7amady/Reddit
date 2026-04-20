@@ -14,7 +14,6 @@ The platform needs secure user authentication supporting both traditional and so
 - **Refresh tokens** (30-day TTL) stored in **httpOnly cookies** with rotation on every use
 - **Token family reuse detection** — reuse of a consumed refresh token invalidates the entire session
 - **Passwords** hashed with **bcrypt** (cost factor ≥ 12)
-- Optional **2FA via TOTP** (Google Authenticator compatible)
 - **Rate limiting**: max 10 failed login attempts per IP per 15 min, then 15-min lockout
 
 ## Consequences

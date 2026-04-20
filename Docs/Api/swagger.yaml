@@ -7,7 +7,7 @@ tags:
   - name: Auth
     description: Authentication endpoints
   - name: Users
-    description: User profiles and follow/unfollow
+    description: User profiles
   - name: Personal Profile
     description: Operations for the authenticated user's own profile
   - name: Posts
@@ -137,7 +137,7 @@ paths:
     get:
       tags:
         - Users
-      summary: Get any user profile
+      summary: Get public user profile
       parameters:
         - name: id
           in: path
@@ -156,10 +156,34 @@ paths:
                     type: integer
                   username:
                     type: string
-                  nickname:
+                  displayName:
                     type: string
-                  email:
+                  avatar:
                     type: string
+                  banner:
+                    type: string
+                  bio:
+                    type: string
+                  links:
+                    type: array
+                    maxItems: 3
+                    items:
+                      type: string
+                  postKarma:
+                    type: integer
+                  commentKarma:
+                    type: integer
+                  accountAge:
+                    type: string
+                    format: date-time
+                  posts:
+                    type: array
+                    items:
+                      type: string
+                  comments:
+                    type: array
+                    items:
+                      type: string
         '404':
           description: User not found
           content:
@@ -169,100 +193,6 @@ paths:
                 properties:
                   error:
                     type: string
-
-  /users/{id}/follow:
-    post:
-      tags:
-        - Users
-      summary: Follow user
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Now following
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-    delete:
-      tags:
-        - Users
-      summary: Unfollow user
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Unfollowed successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-
-  /users/{id}/followers:
-    get:
-      tags:
-        - Users
-      summary: List followers
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    username:
-                      type: string
-
-  /users/{id}/following:
-    get:
-      tags:
-        - Users
-      summary: List following
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: integer
-                    username:
-                      type: string
 
   # ── Personal Profile ───────────────────────────────
   /me:
