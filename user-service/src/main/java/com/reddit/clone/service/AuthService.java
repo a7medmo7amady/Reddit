@@ -41,6 +41,11 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+    }
+
     public User login(String email, String password) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Invalid email or password"));
