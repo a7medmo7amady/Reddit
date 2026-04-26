@@ -58,6 +58,9 @@ public class User {
     @Enumerated(EnumType.STRING)
     private OAuthProvider oauthProvider;
 
+    @Column(nullable = false)
+    private boolean isBanned = false;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -118,6 +121,9 @@ public class User {
 
     public OAuthProvider getOauthProvider() { return oauthProvider; }
     public void setOauthProvider(OAuthProvider oauthProvider) { this.oauthProvider = oauthProvider; }
+
+    public boolean isBanned() { return isBanned; }
+    public void setBanned(boolean isBanned) { this.isBanned = isBanned; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
 }
