@@ -1,19 +1,17 @@
-package main 
+package main
 
 import (
-	"fmt"
-	"log"
-	"os"
-	"time"
-	"context"
-	"github.com/IBM/sarama"
+	"audit-service/internal/consumer"
+	"audit-service/internal/handler"
+	"audit-service/internal/repository"
+	"audit-service/internal/service"
 )
 
+func main() {
+	repo := repository.NewAuditRepository()
+	svc := service.NewAuditService(repo)
+	handler := handler.NewEventHandler(svc)
+	consumer := consumer.NewKafkaConsumer(handler)
 
-type Event struct{
-	eventID string 
-	eventType string
-	service string
-	timeStamp int64 
-
+	consumer.Start()
 }
