@@ -3,5 +3,5 @@ kafka:
     - kafka:9092
   group_id: audit-service-group
   topics:
-    - auth-events
-    - user-events
+    - auth-topic
+    - user-topic

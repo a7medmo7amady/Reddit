@@ -1,13 +1,27 @@
 package repository
 
-import "fmt"
+import (
+	"audit-service/internal/model"
+	"audit-service/pkg/logger"
+)
 
-type AuditRepository struct{}
-
-func NewAuditRepository() *AuditRepository {
-	return &AuditRepository{}
+type AuditRepository interface {
+	Save(log model.AuditLog) error
 }
 
-func (r *AuditRepository) Save(log string) {
-	fmt.Println("Saving log:", log)
+type auditRepository struct{}
+
+func NewAuditRepository() AuditRepository {
+	return &auditRepository{}
+}
+
+func (r *auditRepository) Save(log model.AuditLog) error {
+	logger.Log.Info("audit log",
+		"user_id", log.UserID,
+		"action", log.Action,
+		"service", log.Service,
+		"topic", log.Topic,
+		"timestamp", log.Timestamp,
+	)
+	return nil
 }

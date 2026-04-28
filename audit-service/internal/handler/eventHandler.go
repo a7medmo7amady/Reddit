@@ -1,18 +1,34 @@
 package handler
 
 import (
-	"audit-service/internal/model"
-	"audit-service/internal/service"
+	"audit-service/pkg/logger"
+
+	"github.com/IBM/sarama"
 )
 
-type EventHandler struct {
-	service *service.AuditService
+type TopicHandler interface {
+	Handle(msg *sarama.ConsumerMessage) error
 }
 
-func NewEventHandler(s *service.AuditService) *EventHandler {
-	return &EventHandler{service: s}
+type Dispatcher struct {
+	handlers map[string]TopicHandler
 }
 
-func (h *EventHandler) Handle(event model.Event) {
-	h.service.HandleEvent(event)
+func NewDispatcher() *Dispatcher {
+	return &Dispatcher{handlers: make(map[string]TopicHandler)}
+}
+
+func (d *Dispatcher) Register(topic string, h TopicHandler) {
+	d.handlers[topic] = h
+}
+
+func (d *Dispatcher) Dispatch(msg *sarama.ConsumerMessage) {
+	h, ok := d.handlers[msg.Topic]
+	if !ok {
+		logger.Log.Warn("no handler registered for topic", "topic", msg.Topic)
+		return
+	}
+	if err := h.Handle(msg); err != nil {
+		logger.Log.Error("handler error", "topic", msg.Topic, "error", err)
+	}
 }
