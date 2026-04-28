@@ -8,7 +8,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o feed-service ./cmd/main.go
 FROM alpine:3.20
 WORKDIR /app
 
-
 COPY --from=builder /app/feed-service .
 COPY --from=builder /app/config ./config
 
