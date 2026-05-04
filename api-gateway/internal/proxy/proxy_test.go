@@ -7,8 +7,6 @@ import (
 
 	"api-gateway/internal/proxy"
 )
-
-// fakeBackend spins up a real HTTP server and returns its URL.
 func fakeBackend(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(handler)
@@ -56,7 +54,7 @@ func TestProxy_ForwardsHeaders(t *testing.T) {
 }
 
 func TestProxy_BackendDown_Returns502(t *testing.T) {
-	// Point at a port nothing is listening on
+
 	p := proxy.NewSingle("http://127.0.0.1:19999")
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/posts/1", nil)

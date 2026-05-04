@@ -1,5 +1,13 @@
 services:
 
+  consul:
+    image: hashicorp/consul:1.19
+    command: agent -dev -client=0.0.0.0
+    ports:
+      - "8500:8500"   # UI + HTTP API
+      - "8600:8600/udp" # DNS
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.27-alpine
     ports:
@@ -15,16 +23,27 @@ services:
   api-gateway:
     build: ./api-gateway
     expose:
-      - "8088"
+      - "8088"   # HTTP / REST
+      - "9090"   # gRPC (h2c)
     environment:
       PORT: "8088"
+      GRPC_PORT: "9090"
       JWT_SECRET: ${JWT_SECRET}
+      CONSUL_ADDR: "consul:8500"
+      # Static fallbacks (used when Consul lookup fails)
       USER_SERVICE_URL: http://user-service:8080
       FEED_SERVICE_URL: http://feed-service:8081
       SEARCH_SERVICE_URL: http://search-service:8082
       VIDEO_SERVICE_URL: http://video-service:8083
       NOTIFICATION_SERVICE_URL: http://notification-service:8084
+      # gRPC backend addresses
+      USER_GRPC_ADDR: user-service:50051
+      FEED_GRPC_ADDR: feed-service:50052
+      SEARCH_GRPC_ADDR: search-service:50053
+      VIDEO_GRPC_ADDR: video-service:50054
+      NOTIFICATION_GRPC_ADDR: notification-service:50055
     depends_on:
+      - consul
       - user-service
     restart: unless-stopped
 
