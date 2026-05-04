@@ -1,5 +1,33 @@
 services:
 
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+  api-gateway:
+    build: ./api-gateway
+    expose:
+      - "8088"
+    environment:
+      PORT: "8088"
+      JWT_SECRET: ${JWT_SECRET}
+      USER_SERVICE_URL: http://user-service:8080
+      FEED_SERVICE_URL: http://feed-service:8081
+      SEARCH_SERVICE_URL: http://search-service:8082
+      VIDEO_SERVICE_URL: http://video-service:8083
+      NOTIFICATION_SERVICE_URL: http://notification-service:8084
+    depends_on:
+      - user-service
+    restart: unless-stopped
+
   postgres:
     image: postgres:15
     environment:
