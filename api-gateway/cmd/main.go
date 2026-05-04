@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"api-gateway/config"
+	"api-gateway/internal/handler"
 	"api-gateway/internal/middleware"
 	"api-gateway/internal/proxy"
 	consulpkg "api-gateway/pkg/consul"
@@ -65,9 +66,21 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logging())
 	r.Use(middleware.CORS())
+	r.Use(middleware.RateLimit())
 
+	// Health check — hits each downstream service and reports aggregate status.
+	r.GET("/health", handler.Health(map[string]string{
+		"user":         resolve("user"),
+		"feed":         resolve("feed"),
+		"search":       resolve("search"),
+		"video":        resolve("video"),
+		"notification": resolve("notification"),
+	}))
+
+	// Public
 	r.Any("/auth/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 
+	// Protected
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 	{
