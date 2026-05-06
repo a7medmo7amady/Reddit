@@ -1,0 +1,165 @@
+{
+    "info": {
+        "_postman_id": "8f3f7f22-61b3-4ac3-b3ee-620c3206034d",
+        "name": "Reddit Video Service (Final All-in-One)",
+        "description": "Final collection: Upload the video and check progress.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "1. Upload Video & Start Everything",
+            "request": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                    "mode": "formdata",
+                    "formdata": [
+                        {
+                            "key": "title",
+                            "value": "Final Test Video",
+                            "type": "text"
+                        },
+                        {
+                            "key": "description",
+                            "value": "One POST to rule them all",
+                            "type": "text"
+                        },
+                        {
+                            "key": "video",
+                            "description": "Select your .mp4 file",
+                            "type": "file",
+                            "src": ""
+                        }
+                    ]
+                },
+                "url": {
+                    "raw": "http://localhost:8083/videos",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "videos"
+                    ]
+                },
+                "description": "Uploads the file. Returns videoId immediately. Upload to S3 and Transcoding will happen in the background."
+            },
+            "response": []
+        },
+        {
+            "name": "2. Check Transcoding Process",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/videos/{{videoId}}/status",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "videos",
+                        "{{videoId}}",
+                        "status"
+                    ]
+                },
+                "description": "Checks if the transcoding to HLS is done."
+            },
+            "response": []
+        },
+        {
+            "name": "3. Get Full Metadata",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/videos/{{videoId}}",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "videos",
+                        "{{videoId}}"
+                    ]
+                },
+                "description": "Returns full metadata including status, thumbnailUrl, and manifestUrl."
+            },
+            "response": []
+        },
+        {
+            "name": "4. Playback (Master Manifest)",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/video/{{videoId}}/master.m3u8",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "video",
+                        "{{videoId}}",
+                        "master.m3u8"
+                    ]
+                },
+                "description": "Fetches the HLS master manifest for the video. This acts as a proxy to the private storage."
+            },
+            "response": []
+        },
+        {
+            "name": "5. Get Thumbnail",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/thumbs/{{videoId}}.jpg",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "thumbs",
+                        "{{videoId}}.jpg"
+                    ]
+                },
+                "description": "Fetches the generated thumbnail image."
+            },
+            "response": []
+        },
+        {
+            "name": "6. Get Preview GIF",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/previews/{{videoId}}.gif",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "previews",
+                        "{{videoId}}.gif"
+                    ]
+                },
+                "description": "Fetches the generated preview GIF."
+            },
+            "response": []
+        }
+    ],
+    "variable": [
+        {
+            "key": "videoId",
+            "value": "REPLACE_ME",
+            "type": "string"
+        }
+    ]
+}
