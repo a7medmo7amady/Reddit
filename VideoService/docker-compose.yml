@@ -11,13 +11,24 @@ services:
       - S3_SECRET_KEY=minioadmin
       - S3_STAGING_BUCKET=staging
       - S3_SERVING_BUCKET=serving
+      - MONGODB_URI=mongodb://mongodb:27017/video_service
       - KAFKAJS_NO_PARTITIONER_WARNING=1
     depends_on:
       kafka:
         condition: service_healthy
       minio:
         condition: service_healthy
+      mongodb:
+        condition: service_started
     restart: always
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -80,7 +91,9 @@ services:
       retries: 3
 
 volumes:
+  mongodb_data:
   minio_data:
   zookeeper_data:
+
   zookeeper_log:
   kafka_data:

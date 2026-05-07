@@ -1,8 +1,8 @@
 {
     "info": {
         "_postman_id": "8f3f7f22-61b3-4ac3-b3ee-620c3206034d",
-        "name": "Reddit Video Service (Final All-in-One)",
-        "description": "Final collection: Upload the video and check progress.",
+        "name": "Reddit Video Service (Multi-Resolution HLS)",
+        "description": "Upload a video and test the full multi-resolution (360p + 720p) HLS transcoding pipeline.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "item": [
@@ -86,9 +86,39 @@
                         "{{videoId}}"
                     ]
                 },
-                "description": "Returns full metadata including status, thumbnailUrl, and manifestUrl."
+                "description": "Returns full metadata. Once status is 'ready', the resolutions array will be populated with ['360p', '720p']."
             },
-            "response": []
+            "response": [
+                {
+                    "name": "Example: Video Ready",
+                    "originalRequest": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8083/videos/{{videoId}}",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8083",
+                            "path": [
+                                "videos",
+                                "{{videoId}}"
+                            ]
+                        }
+                    },
+                    "status": "Accepted",
+                    "code": 200,
+                    "_postman_previewlanguage": "json",
+                    "header": [
+                        {
+                            "key": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ],
+                    "body": "{\n  \"videoId\": \"{{videoId}}\",\n  \"status\": \"ready\",\n  \"duration\": 120,\n  \"thumbnailUrl\": \"/thumbs/{{videoId}}.jpg\",\n  \"previewUrl\": \"/previews/{{videoId}}.gif\",\n  \"manifestUrl\": \"/video/{{videoId}}/master.m3u8\",\n  \"resolutions\": [\"360p\", \"720p\"]\n}"
+                }
+            ]
         },
         {
             "name": "4. Playback (Master Manifest)",
@@ -108,12 +138,56 @@
                         "master.m3u8"
                     ]
                 },
-                "description": "Fetches the HLS master manifest for the video. This acts as a proxy to the private storage."
+                "description": "Fetches the HLS master playlist. References 360p.m3u8 and 720p.m3u8 variant streams. A player (e.g. hls.js) will auto-select the best quality."
             },
             "response": []
         },
         {
-            "name": "5. Get Thumbnail",
+            "name": "5. Playback (360p Variant)",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/video/{{videoId}}/360p.m3u8",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "video",
+                        "{{videoId}}",
+                        "360p.m3u8"
+                    ]
+                },
+                "description": "Fetches the 360p (640x360 @ 800kbps) HLS variant playlist directly."
+            },
+            "response": []
+        },
+        {
+            "name": "6. Playback (720p Variant)",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://localhost:8083/video/{{videoId}}/720p.m3u8",
+                    "protocol": "http",
+                    "host": [
+                        "localhost"
+                    ],
+                    "port": "8083",
+                    "path": [
+                        "video",
+                        "{{videoId}}",
+                        "720p.m3u8"
+                    ]
+                },
+                "description": "Fetches the 720p (1280x720 @ 2500kbps) HLS variant playlist directly."
+            },
+            "response": []
+        },
+        {
+            "name": "7. Get Thumbnail",
             "request": {
                 "method": "GET",
                 "header": [],
@@ -134,7 +208,7 @@
             "response": []
         },
         {
-            "name": "6. Get Preview GIF",
+            "name": "8. Get Preview GIF",
             "request": {
                 "method": "GET",
                 "header": [],

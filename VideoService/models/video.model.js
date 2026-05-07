@@ -1,31 +1,45 @@
-const videos = new Map();
+const mongoose = require('mongoose');
+
+const videoSchema = new mongoose.Schema({
+    id: { type: String, required: true, unique: true },
+    title: { type: String, default: 'Untitled' },
+    description: { type: String, default: '' },
+    status: { 
+        type: String, 
+        enum: ['PENDING', 'UPLOADING', 'UPLOADED', 'PROCESSING', 'READY', 'FAILED'], 
+        default: 'PENDING' 
+    },
+    thumbnailUrl: { type: String, default: '' },
+    previewUrl: { type: String, default: '' },
+    playbackUrl: { type: String, default: '' },
+    duration: { type: Number, default: 0 },
+    resolutions: { type: [String], default: [] },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now }
+});
+
+const Video = mongoose.model('Video', videoSchema);
 
 class VideoModel {
     static async create(id, data) {
-        const record = {
-            id,
-            status: 'PENDING',
-            createdAt: new Date(),
-            ...data
-        };
-        videos.set(id, record);
-        return record;
+        const video = new Video({ id, ...data });
+        return await video.save();
     }
 
     static async findById(id) {
-        return videos.get(id);
+        return await Video.findOne({ id });
     }
 
     static async update(id, updates) {
-        const video = videos.get(id);
-        if (!video) return null;
-        const updated = { ...video, ...updates, updatedAt: new Date() };
-        videos.set(id, updated);
-        return updated;
+        return await Video.findOneAndUpdate(
+            { id }, 
+            { ...updates, updatedAt: Date.now() }, 
+            { new: true }
+        );
     }
 
     static async getAll() {
-        return Array.from(videos.values());
+        return await Video.find().sort({ createdAt: -1 });
     }
 }
 

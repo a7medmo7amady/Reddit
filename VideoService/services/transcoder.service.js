@@ -23,7 +23,7 @@ class TranscoderService {
             const gifPath = await this.generatePreviewGif(rawLocalPath, tempDir);
             await storageService.uploadFile(gifPath, `previews/${videoId}.gif`, 'serving');
 
-            await this.transcodeToHLS(rawLocalPath, tempDir);
+            const resolutions = await this.transcodeToHLS(rawLocalPath, tempDir);
 
             const files = fs.readdirSync(tempDir);
             for (const file of files) {
@@ -36,7 +36,8 @@ class TranscoderService {
                 status: 'READY', 
                 thumbnailUrl: `/thumbs/${videoId}.jpg`,
                 previewUrl: `/previews/${videoId}.gif`,
-                playbackUrl: `/video/${videoId}/master.m3u8`
+                playbackUrl: `/video/${videoId}/master.m3u8`,
+                resolutions: resolutions
             });
             await kafkaService.publish('video.ready', { videoId, status: 'READY' });
         } catch (error) {
@@ -75,22 +76,45 @@ class TranscoderService {
         });
     }
 
-    transcodeToHLS(inputPath, outputDir) {
-        return new Promise((resolve, reject) => {
-            ffmpeg(inputPath)
-                .outputOptions([
-                    '-profile:v baseline',
-                    '-level 3.0',
-                    '-start_number 0',
-                    '-hls_time 10',
-                    '-hls_list_size 0',
-                    '-f hls'
-                ])
-                .output(path.join(outputDir, 'master.m3u8'))
-                .on('end', resolve)
-                .on('error', reject)
-                .run();
-        });
+    async transcodeToHLS(inputPath, outputDir) {
+        const configs = [
+            { resolution: '360p', size: '640x360', bitrate: '800k' },
+            { resolution: '720p', size: '1280x720', bitrate: '2500k' }
+        ];
+
+        for (const config of configs) {
+            await new Promise((resolve, reject) => {
+                ffmpeg(inputPath)
+                    .size(config.size)
+                    .videoBitrate(config.bitrate)
+                    .outputOptions([
+                        '-profile:v baseline',
+                        '-level 3.0',
+                        '-start_number 0',
+                        '-hls_time 10',
+                        '-hls_list_size 0',
+                        '-f hls'
+                    ])
+                    .output(path.join(outputDir, `${config.resolution}.m3u8`))
+                    .on('end', resolve)
+                    .on('error', reject)
+                    .run();
+            });
+        }
+
+        // Create Master Playlist
+        const masterPlaylistContent = [
+            '#EXTM3U',
+            '#EXT-X-VERSION:3',
+            '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
+            '360p.m3u8',
+            '#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720',
+            '720p.m3u8'
+        ].join('\n');
+
+        fs.writeFileSync(path.join(outputDir, 'master.m3u8'), masterPlaylistContent);
+
+        return configs.map(c => c.resolution);
     }
 }
 

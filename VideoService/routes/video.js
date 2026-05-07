@@ -83,7 +83,7 @@ router.get('/videos/:id', async (req, res) => {
             thumbnailUrl: video.thumbnailUrl || '',
             previewUrl: video.previewUrl || '',
             manifestUrl: video.playbackUrl || '',
-            resolutions: video.resolutions || ['360p', '720p']
+            resolutions: video.resolutions
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
