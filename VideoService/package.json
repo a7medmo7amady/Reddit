@@ -1,5 +1,5 @@
 {
-  "name": "videoservice",
+  "name": "uploadservice",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -21,6 +21,8 @@
     "kafkajs": "^2.2.4",
     "mongoose": "^9.6.1",
     "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "sharp": "^0.34.5",
     "uuid": "^14.0.0"
   },
   "devDependencies": {

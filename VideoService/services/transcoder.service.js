@@ -3,44 +3,54 @@ const path = require('path');
 const fs = require('fs');
 const storageService = require('./storage.service');
 const kafkaService = require('./kafka.service');
-const VideoModel = require('../models/video.model');
+const PostModel = require('../models/post.model');
 
 class TranscoderService {
-    async processVideo(videoId, rawS3Key) {
-        const video = await VideoModel.findById(videoId);
-        if (video && video.status === 'READY') return;
+    async processVideo(postId, rawS3Key) {
+        const post = await PostModel.findById(postId);
+        if (post && post.video?.status === 'READY') return;
 
-        const tempDir = path.join(__dirname, '../temp', videoId);
+        const tempDir = path.join(__dirname, '../temp', postId);
         if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
         const rawLocalPath = path.join(tempDir, 'raw.mp4');
 
         try {
             await storageService.downloadFile(rawS3Key, rawLocalPath, 'staging');
 
+            // ── Thumbnail ──────────────────────────────────────────────────
             const thumbPath = await this.generateThumbnail(rawLocalPath, tempDir);
-            await storageService.uploadFile(thumbPath, `thumbs/${videoId}.jpg`, 'serving');
+            await storageService.uploadFile(thumbPath, `thumbs/${postId}.jpg`, 'serving');
 
+            // ── Preview GIF ────────────────────────────────────────────────
             const gifPath = await this.generatePreviewGif(rawLocalPath, tempDir);
-            await storageService.uploadFile(gifPath, `previews/${videoId}.gif`, 'serving');
+            await storageService.uploadFile(gifPath, `previews/${postId}.gif`, 'serving');
 
+            // ── HLS Transcoding (360p, 720p, 1080p) ───────────────────────
             const resolutions = await this.transcodeToHLS(rawLocalPath, tempDir);
 
+            // ── Upload all HLS segments & manifests ────────────────────────
             const files = fs.readdirSync(tempDir);
             for (const file of files) {
                 if (file.endsWith('.m3u8') || file.endsWith('.ts')) {
-                    await storageService.uploadFile(path.join(tempDir, file), `video/${videoId}/${file}`, 'serving');
+                    await storageService.uploadFile(
+                        path.join(tempDir, file),
+                        `video/${postId}/${file}`,
+                        'serving'
+                    );
                 }
             }
 
-            await VideoModel.update(videoId, { 
-                status: 'READY', 
-                thumbnailUrl: `/thumbs/${videoId}.jpg`,
-                previewUrl: `/previews/${videoId}.gif`,
-                playbackUrl: `/video/${videoId}/master.m3u8`,
-                resolutions: resolutions
+            await PostModel.update(postId, {
+                'video.status':       'READY',
+                'video.thumbnailUrl': `/assets/thumbs/${postId}.jpg`,
+                'video.previewUrl':   `/assets/previews/${postId}.gif`,
+                'video.playbackUrl':  `/assets/video/${postId}/master.m3u8`,
+                'video.resolutions':  resolutions,
             });
-            await kafkaService.publish('video.ready', { videoId, status: 'READY' });
+
+            await kafkaService.publish('video.ready', { postId, status: 'READY' });
         } catch (error) {
+            await PostModel.update(postId, { 'video.status': 'FAILED' });
             throw error;
         } finally {
             if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
@@ -77,9 +87,11 @@ class TranscoderService {
     }
 
     async transcodeToHLS(inputPath, outputDir) {
+        // FR-UC-03: 360p, 720p, 1080p variants
         const configs = [
-            { resolution: '360p', size: '640x360', bitrate: '800k' },
-            { resolution: '720p', size: '1280x720', bitrate: '2500k' }
+            { resolution: '360p',  size: '640x360',   bitrate: '800k'  },
+            { resolution: '720p',  size: '1280x720',  bitrate: '2500k' },
+            { resolution: '1080p', size: '1920x1080', bitrate: '5000k' },
         ];
 
         for (const config of configs) {
@@ -102,14 +114,16 @@ class TranscoderService {
             });
         }
 
-        // Create Master Playlist
+        // Master playlist referencing all three variants
         const masterPlaylistContent = [
             '#EXTM3U',
             '#EXT-X-VERSION:3',
             '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
             '360p.m3u8',
             '#EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720',
-            '720p.m3u8'
+            '720p.m3u8',
+            '#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080',
+            '1080p.m3u8',
         ].join('\n');
 
         fs.writeFileSync(path.join(outputDir, 'master.m3u8'), masterPlaylistContent);

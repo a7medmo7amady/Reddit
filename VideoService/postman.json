@@ -1,239 +1,236 @@
 {
     "info": {
-        "_postman_id": "8f3f7f22-61b3-4ac3-b3ee-620c3206034d",
-        "name": "Reddit Video Service (Multi-Resolution HLS)",
-        "description": "Upload a video and test the full multi-resolution (360p + 720p) HLS transcoding pipeline.",
+        "_postman_id": "c3118e32-366c-4fc3-8c7b-cd40b881e612",
+        "name": "Reddit Upload Service — Mixed Content",
+        "description": "Unified Upload Service supporting mixed content posts (Text, Images, Link, Video).",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
+    "variable": [
+        { "key": "host", "value": "localhost:8083", "type": "string" },
+        { "key": "postId", "value": "", "type": "string" },
+        { "key": "filename", "value": "master.m3u8", "type": "string" }
+    ],
     "item": [
         {
-            "name": "1. Upload Video & Start Everything",
+            "name": "00. Health Check",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/health",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["health"]
+                }
+            }
+        },
+        {
+            "name": "01. Create Mixed Post",
+            "event": [{
+                "listen": "test",
+                "script": {
+                    "exec": [
+                        "var r = pm.response.json();",
+                        "var id = r.id || r.postId;",
+                        "if (id) pm.collectionVariables.set('postId', id);",
+                        "pm.test('Post Created', () => pm.expect(pm.response.code).to.be.oneOf([201, 202]));"
+                    ],
+                    "type": "text/javascript"
+                }
+            }],
             "request": {
                 "method": "POST",
-                "header": [],
+                "header": [
+                    { "key": "x-user-id", "value": "user_abc", "type": "text" }
+                ],
                 "body": {
                     "mode": "formdata",
                     "formdata": [
-                        {
-                            "key": "title",
-                            "value": "Final Test Video",
-                            "type": "text"
-                        },
-                        {
-                            "key": "description",
-                            "value": "One POST to rule them all",
-                            "type": "text"
-                        },
-                        {
-                            "key": "video",
-                            "description": "Select your .mp4 file",
-                            "type": "file",
-                            "src": ""
-                        }
+                        { "key": "title", "value": "The Ultimate Mixed Post", "type": "text" },
+                        { "key": "community", "value": "r/all", "type": "text" },
+                        { "key": "type", "value": "mixed", "type": "text" },
+                        { "key": "body", "value": "Check out this mixed post with text, images, and video!", "type": "text" },
+                        { "key": "url", "value": "https://google.com", "type": "text" },
+                        { "key": "images", "type": "file", "src": [], "description": "Select 1-5 images" },
+                        { "key": "video", "type": "file", "src": [], "description": "Select 1 video" }
                     ]
                 },
                 "url": {
-                    "raw": "http://localhost:8083/videos",
+                    "raw": "http://{{host}}/posts",
                     "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "videos"
-                    ]
+                    "host": ["{{host}}"],
+                    "path": ["posts"]
                 },
-                "description": "Uploads the file. Returns videoId immediately. Upload to S3 and Transcoding will happen in the background."
-            },
-            "response": []
+                "description": "Upload everything at once! Use the 'File' selector in the Body tab for images/video."
+            }
         },
         {
-            "name": "2. Check Transcoding Process",
+            "name": "List All Posts",
             "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                    "raw": "http://localhost:8083/videos/{{videoId}}/status",
+                    "raw": "http://{{host}}/posts?community=r/all&limit=10&page=1",
                     "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "videos",
-                        "{{videoId}}",
-                        "status"
+                    "host": ["{{host}}"],
+                    "path": ["posts"],
+                    "query": [
+                        { "key": "community", "value": "r/all", "description": "Optional: Filter by community" },
+                        { "key": "limit", "value": "10", "description": "Optional: Number of posts per page" },
+                        { "key": "page", "value": "1", "description": "Optional: Page number" }
                     ]
-                },
-                "description": "Checks if the transcoding to HLS is done."
-            },
-            "response": []
+                }
+            }
         },
         {
-            "name": "3. Get Full Metadata",
+            "name": "02. Check Video Status (Poll)",
             "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                    "raw": "http://localhost:8083/videos/{{videoId}}",
+                    "raw": "http://{{host}}/posts/{{postId}}/status",
                     "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "videos",
-                        "{{videoId}}"
-                    ]
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}", "status"]
+                }
+            }
+        },
+        {
+            "name": "03. Get Final Post",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}"]
+                }
+            }
+        },
+        {
+            "name": "04. Edit Post (Metadata only)",
+            "request": {
+                "method": "PATCH",
+                "header": [
+                    { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"title\": \"Updated Mixed Post Title\",\n  \"body\": \"This text is now updated!\"\n}",
+                    "options": { "raw": { "language": "json" }}
                 },
-                "description": "Returns full metadata. Once status is 'ready', the resolutions array will be populated with ['360p', '720p']."
-            },
-            "response": [
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}"]
+                }
+            }
+        },
+        {
+            "name": "05. Delete Post",
+            "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}"]
+                }
+            }
+        },
+        {
+            "name": "Post Assets",
+            "item": [
                 {
-                    "name": "Example: Video Ready",
-                    "originalRequest": {
+                    "name": "Get HLS Stream (Master)",
+                    "request": {
                         "method": "GET",
                         "header": [],
                         "url": {
-                            "raw": "http://localhost:8083/videos/{{videoId}}",
+                            "raw": "http://{{host}}/assets/video/{{postId}}/master.m3u8",
                             "protocol": "http",
-                            "host": [
-                                "localhost"
-                            ],
-                            "port": "8083",
-                            "path": [
-                                "videos",
-                                "{{videoId}}"
-                            ]
+                            "host": ["{{host}}"],
+                            "path": ["assets", "video", "{{postId}}", "master.m3u8"]
                         }
-                    },
-                    "status": "Accepted",
-                    "code": 200,
-                    "_postman_previewlanguage": "json",
-                    "header": [
-                        {
-                            "key": "Content-Type",
-                            "value": "application/json"
+                    }
+                },
+                {
+                    "name": "Get Specific Asset File",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/video/{{postId}}/{{filename}}",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "video", "{{postId}}", "{{filename}}"]
+                        },
+                        "description": "Used to fetch .ts segments or resolution-specific .m3u8 files."
+                    }
+                },
+                {
+                    "name": "Get Video Thumbnail",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/thumbs/{{postId}}.jpg",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "thumbs", "{{postId}}.jpg"]
                         }
-                    ],
-                    "body": "{\n  \"videoId\": \"{{videoId}}\",\n  \"status\": \"ready\",\n  \"duration\": 120,\n  \"thumbnailUrl\": \"/thumbs/{{videoId}}.jpg\",\n  \"previewUrl\": \"/previews/{{videoId}}.gif\",\n  \"manifestUrl\": \"/video/{{videoId}}/master.m3u8\",\n  \"resolutions\": [\"360p\", \"720p\"]\n}"
+                    }
+                },
+                {
+                    "name": "Get Preview GIF",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/previews/{{postId}}.gif",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "previews", "{{postId}}.gif"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Processed Image Variant",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/images/{{postId}}/{{filename}}",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "images", "{{postId}}", "{{filename}}"]
+                        },
+                        "description": "Filename should be in format: imageId-variant.webp (e.g. uuid-thumbnail.webp)"
+                    }
                 }
             ]
         },
         {
-            "name": "4. Playback (Master Manifest)",
-            "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                    "raw": "http://localhost:8083/video/{{videoId}}/master.m3u8",
-                    "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "video",
-                        "{{videoId}}",
-                        "master.m3u8"
-                    ]
-                },
-                "description": "Fetches the HLS master playlist. References 360p.m3u8 and 720p.m3u8 variant streams. A player (e.g. hls.js) will auto-select the best quality."
-            },
-            "response": []
-        },
-        {
-            "name": "5. Playback (360p Variant)",
-            "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                    "raw": "http://localhost:8083/video/{{videoId}}/360p.m3u8",
-                    "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "video",
-                        "{{videoId}}",
-                        "360p.m3u8"
-                    ]
-                },
-                "description": "Fetches the 360p (640x360 @ 800kbps) HLS variant playlist directly."
-            },
-            "response": []
-        },
-        {
-            "name": "6. Playback (720p Variant)",
-            "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                    "raw": "http://localhost:8083/video/{{videoId}}/720p.m3u8",
-                    "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "video",
-                        "{{videoId}}",
-                        "720p.m3u8"
-                    ]
-                },
-                "description": "Fetches the 720p (1280x720 @ 2500kbps) HLS variant playlist directly."
-            },
-            "response": []
-        },
-        {
-            "name": "7. Get Thumbnail",
-            "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                    "raw": "http://localhost:8083/thumbs/{{videoId}}.jpg",
-                    "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "thumbs",
-                        "{{videoId}}.jpg"
-                    ]
-                },
-                "description": "Fetches the generated thumbnail image."
-            },
-            "response": []
-        },
-        {
-            "name": "8. Get Preview GIF",
-            "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                    "raw": "http://localhost:8083/previews/{{videoId}}.gif",
-                    "protocol": "http",
-                    "host": [
-                        "localhost"
-                    ],
-                    "port": "8083",
-                    "path": [
-                        "previews",
-                        "{{videoId}}.gif"
-                    ]
-                },
-                "description": "Fetches the generated preview GIF."
-            },
-            "response": []
-        }
-    ],
-    "variable": [
-        {
-            "key": "videoId",
-            "value": "REPLACE_ME",
-            "type": "string"
+            "name": "Post Management",
+            "item": [
+                {
+                    "name": "Get Edit History",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/history",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "history"]
+                        },
+                        "description": "Returns full versioned history for text/link posts."
+                    }
+                }
+            ]
         }
     ]
 }

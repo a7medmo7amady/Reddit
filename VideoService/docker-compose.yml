@@ -1,5 +1,5 @@
 services:
-  video-service:
+  upload-service:
     build: .
     ports:
       - "8083:3000"
@@ -11,7 +11,8 @@ services:
       - S3_SECRET_KEY=minioadmin
       - S3_STAGING_BUCKET=staging
       - S3_SERVING_BUCKET=serving
-      - MONGODB_URI=mongodb://mongodb:27017/video_service
+      - S3_IMAGES_BUCKET=images
+      - MONGODB_URI=mongodb://mongodb:27017/upload_service
       - KAFKAJS_NO_PARTITIONER_WARNING=1
     depends_on:
       kafka:
