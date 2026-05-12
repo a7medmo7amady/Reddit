@@ -54,6 +54,10 @@ public class UserService {
 
     public PublicProfileResponse getPublicProfile(String username) {
         User u = findByUsername(username);
+        return toPublicProfile(u);
+    }
+
+    public PublicProfileResponse toPublicProfile(User u) {
         return new PublicProfileResponse(
                 u.getUsername(), u.getDisplayName(), u.getBio(),
                 u.getAvatar(), u.getBanner(),
