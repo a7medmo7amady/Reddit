@@ -1,35 +1,45 @@
 package com.reddit.clone.service;
 
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.reddit.clone.dto.PrivateProfileResponse;
 import com.reddit.clone.dto.PublicProfileResponse;
 import com.reddit.clone.dto.UpdateProfileRequest;
 import com.reddit.clone.exception.UserNotFoundException;
-import com.reddit.clone.model.User;
-import com.reddit.clone.repository.UserRepository;
-import com.reddit.clone.security.TokenService;
-import com.reddit.clone.model.UserBlock;
-import com.reddit.clone.repository.UserBlockRepository;
-import com.reddit.clone.model.UserFollow;
-import com.reddit.clone.repository.UserFollowRepository;
 import com.reddit.clone.model.Role;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
+import com.reddit.clone.model.User;
+import com.reddit.clone.model.UserBlock;
+import com.reddit.clone.model.UserFollow;
+import com.reddit.clone.repository.UserBlockRepository;
+import com.reddit.clone.repository.UserFollowRepository;
+import com.reddit.clone.repository.UserRepository;
+import com.reddit.clone.repository.ModerationLogRepository;
+import com.reddit.clone.model.ModerationLog;
+import com.reddit.clone.security.TokenService;
+import java.util.Optional;
 
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
-    private final TokenService   tokenService;
+    private final TokenService tokenService;
     private final UserBlockRepository userBlockRepository;
     private final UserFollowRepository userFollowRepository;
+    private final ModerationLogRepository moderationLogRepository;
 
-    public UserService(UserRepository userRepository, TokenService tokenService, UserBlockRepository userBlockRepository, UserFollowRepository userFollowRepository) {
+    public UserService(UserRepository userRepository, 
+                       TokenService tokenService, 
+                       UserBlockRepository userBlockRepository, 
+                       UserFollowRepository userFollowRepository,
+                       Optional<ModerationLogRepository> moderationLogRepository) {
         this.userRepository = userRepository;
-        this.tokenService   = tokenService;
+        this.tokenService = tokenService;
         this.userBlockRepository = userBlockRepository;
         this.userFollowRepository = userFollowRepository;
+        this.moderationLogRepository = moderationLogRepository.orElse(null);
     }
 
     public User findById(Long id) {
@@ -62,11 +72,21 @@ public class UserService {
     @Transactional
     public User updateProfile(Long userId, UpdateProfileRequest req) {
         User user = findById(userId);
-        if (req.displayName() != null) user.setDisplayName(req.displayName());
-        if (req.bio()         != null) user.setBio(req.bio());
-        if (req.avatar()      != null) user.setAvatar(req.avatar());
-        if (req.banner()      != null) user.setBanner(req.banner());
-        if (req.links()       != null) user.setLinks(req.links());
+        if (req.displayName() != null) {
+            user.setDisplayName(req.displayName());
+        }
+        if (req.bio() != null) {
+            user.setBio(req.bio());
+        }
+        if (req.avatar() != null) {
+            user.setAvatar(req.avatar());
+        }
+        if (req.banner() != null) {
+            user.setBanner(req.banner());
+        }
+        if (req.links() != null) {
+            user.setLinks(req.links());
+        }
         return userRepository.save(user);
     }
 
@@ -100,10 +120,10 @@ public class UserService {
         return userBlockRepository.findByBlocker(blocker).stream()
                 .map(UserBlock::getBlocked)
                 .map(u -> new PublicProfileResponse(
-                        u.getUsername(), u.getDisplayName(), u.getBio(),
-                        u.getAvatar(), u.getBanner(),
-                        u.getPostKarma() + u.getCommentKarma(),
-                        u.getCreatedAt()))
+                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getAvatar(), u.getBanner(),
+                u.getPostKarma() + u.getCommentKarma(),
+                u.getCreatedAt()))
                 .toList();
     }
 
@@ -137,10 +157,10 @@ public class UserService {
         return userFollowRepository.findByFollower(follower).stream()
                 .map(UserFollow::getFollowed)
                 .map(u -> new PublicProfileResponse(
-                        u.getUsername(), u.getDisplayName(), u.getBio(),
-                        u.getAvatar(), u.getBanner(),
-                        u.getPostKarma() + u.getCommentKarma(),
-                        u.getCreatedAt()))
+                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getAvatar(), u.getBanner(),
+                u.getPostKarma() + u.getCommentKarma(),
+                u.getCreatedAt()))
                 .toList();
     }
 
@@ -150,10 +170,10 @@ public class UserService {
         return userFollowRepository.findByFollowed(user).stream()
                 .map(UserFollow::getFollower)
                 .map(u -> new PublicProfileResponse(
-                        u.getUsername(), u.getDisplayName(), u.getBio(),
-                        u.getAvatar(), u.getBanner(),
-                        u.getPostKarma() + u.getCommentKarma(),
-                        u.getCreatedAt()))
+                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getAvatar(), u.getBanner(),
+                u.getPostKarma() + u.getCommentKarma(),
+                u.getCreatedAt()))
                 .toList();
     }
 
@@ -197,5 +217,81 @@ public class UserService {
         }
         tokenService.revokeAllForUser(userId);
         userRepository.deleteById(userId);
+    }
+
+    // ===== FR-U-06: Roles & Moderation =====
+
+    @Transactional
+    public void assignModerator(Long adminId, String targetUsername) {
+        User admin = findById(adminId);
+        if (admin.getRole() != Role.ADMIN) {
+            throw new SecurityException("Only admins can assign moderators");
+        }
+        User target = findByUsername(targetUsername);
+        target.setRole(Role.MODERATOR);
+        userRepository.save(target);
+        
+        logModerationAction("ASSIGN_MODERATOR", admin, target, "Promoted to Moderator");
+    }
+
+    @Transactional
+    public void removeModerator(Long adminId, String targetUsername) {
+        User admin = findById(adminId);
+        if (admin.getRole() != Role.ADMIN) {
+            throw new SecurityException("Only admins can remove moderators");
+        }
+        User target = findByUsername(targetUsername);
+        target.setRole(Role.USER);
+        userRepository.save(target);
+        
+        logModerationAction("REMOVE_MODERATOR", admin, target, "Demoted to User");
+    }
+
+    @Transactional
+    public void moderatorBanUser(Long moderatorId, String targetUsername, String reason) {
+        User moderator = findById(moderatorId);
+        if (moderator.getRole() != Role.MODERATOR && moderator.getRole() != Role.ADMIN) {
+            throw new SecurityException("Insufficient permissions to ban user");
+        }
+        
+        User target = findByUsername(targetUsername);
+        
+        // Safety check: Moderators cannot ban other moderators or admins
+        if (moderator.getRole() == Role.MODERATOR && target.getRole() != Role.USER) {
+            throw new SecurityException("Moderators can only ban regular users");
+        }
+        
+        target.setBanned(true);
+        userRepository.save(target);
+        
+        logModerationAction("MOD_BAN_USER", moderator, target, reason);
+    }
+
+    @Transactional
+    public void moderatorUnbanUser(Long moderatorId, String targetUsername) {
+        User moderator = findById(moderatorId);
+        if (moderator.getRole() != Role.MODERATOR && moderator.getRole() != Role.ADMIN) {
+            throw new SecurityException("Insufficient permissions to unban user");
+        }
+        
+        User target = findByUsername(targetUsername);
+        target.setBanned(false);
+        userRepository.save(target);
+        
+        logModerationAction("MOD_UNBAN_USER", moderator, target, "Unbanned by moderator");
+    }
+
+    private void logModerationAction(String action, User moderator, User target, String reason) {
+        if (moderationLogRepository != null) {
+            ModerationLog log = new ModerationLog(
+                action, 
+                moderator.getId(), 
+                moderator.getUsername(),
+                target != null ? target.getId() : null,
+                target != null ? target.getUsername() : null,
+                reason
+            );
+            moderationLogRepository.save(log);
+        }
     }
 }
