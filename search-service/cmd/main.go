@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"search-service/internal/client"
+	"search-service/internal/consumer"
 	"search-service/internal/elasticsearch"
 	"search-service/internal/handler"
 	"search-service/internal/service"
@@ -30,6 +31,15 @@ func main() {
 	// Initialize services and handlers
 	searchService := service.NewSearchService(esClient)
 	searchHandler := handler.NewSearchHandler(searchService, videoClient)
+
+	// Initialize and start Kafka Consumer for indexing
+	searchConsumer, err := consumer.NewSearchConsumer(searchService)
+	if err != nil {
+		log.Printf("Warning: Failed to start Search Kafka Consumer: %v", err)
+	} else {
+		searchConsumer.Start(context.Background())
+		defer searchConsumer.Close()
+	}
 
 	// Create index if it doesn't exist
 	if err := searchService.CreateIndex(context.Background()); err != nil {

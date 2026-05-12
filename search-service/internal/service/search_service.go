@@ -21,6 +21,11 @@ type SearchService interface {
 	IndexUser(ctx context.Context, user model.User) error
 	IndexComment(ctx context.Context, comment model.Comment) error
 	
+	DeletePost(ctx context.Context, id string) error
+	DeleteCommunity(ctx context.Context, id string) error
+	DeleteUser(ctx context.Context, id string) error
+	DeleteComment(ctx context.Context, id string) error
+	
 	SearchPosts(ctx context.Context, query string, filters map[string]interface{}, limit, page int) ([]model.Post, int64, error)
 	SearchCommunities(ctx context.Context, query string, limit, page int) ([]model.Community, int64, error)
 	SearchUsers(ctx context.Context, query string, limit, page int) ([]model.User, int64, error)
@@ -135,6 +140,38 @@ func (s *searchService) IndexUser(ctx context.Context, user model.User) error {
 func (s *searchService) IndexComment(ctx context.Context, comment model.Comment) error {
 	data, _ := json.Marshal(comment)
 	req := esapi.IndexRequest{Index: "comments", DocumentID: comment.ID, Body: bytes.NewReader(data), Refresh: "true"}
+	res, err := req.Do(ctx, s.esClient)
+	if err != nil { return err }
+	defer res.Body.Close()
+	return nil
+}
+
+func (s *searchService) DeletePost(ctx context.Context, id string) error {
+	req := esapi.DeleteRequest{Index: "posts", DocumentID: id}
+	res, err := req.Do(ctx, s.esClient)
+	if err != nil { return err }
+	defer res.Body.Close()
+	return nil
+}
+
+func (s *searchService) DeleteCommunity(ctx context.Context, id string) error {
+	req := esapi.DeleteRequest{Index: "communities", DocumentID: id}
+	res, err := req.Do(ctx, s.esClient)
+	if err != nil { return err }
+	defer res.Body.Close()
+	return nil
+}
+
+func (s *searchService) DeleteUser(ctx context.Context, id string) error {
+	req := esapi.DeleteRequest{Index: "users", DocumentID: id}
+	res, err := req.Do(ctx, s.esClient)
+	if err != nil { return err }
+	defer res.Body.Close()
+	return nil
+}
+
+func (s *searchService) DeleteComment(ctx context.Context, id string) error {
+	req := esapi.DeleteRequest{Index: "comments", DocumentID: id}
 	res, err := req.Do(ctx, s.esClient)
 	if err != nil { return err }
 	defer res.Body.Close()
