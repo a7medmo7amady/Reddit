@@ -5,3 +5,7 @@ Docs/Architecture/.structurizr/
 # Obsidian
 Docs/.obsidian/
 .env
+
+# TLS certificates
+nginx/certs/*.crt
+nginx/certs/*.key
