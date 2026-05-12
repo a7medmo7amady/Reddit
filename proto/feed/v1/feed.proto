@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package feed.v1;
+
+option go_package = "github.com/reddit/proto/feed/v1;feedv1";
+option java_package = "com.reddit.feed.v1";
+
+// FeedService is implemented by feed-service (Go/Gin).
+service FeedService {
+  rpc GetPost(GetPostRequest) returns (GetPostResponse);
+  // Server-streaming — client receives a live feed of new posts.
+  rpc StreamFeed(StreamFeedRequest) returns (stream FeedEvent);
+}
+
+message GetPostRequest {
+  string post_id = 1;
+}
+
+message GetPostResponse {
+  string post_id   = 1;
+  string author_id = 2;
+  string title     = 3;
+  string body      = 4;
+  int64  created_at = 5;
+}
+
+message StreamFeedRequest {
+  string user_id    = 1;
+  string subreddit  = 2;
+}
+
+message FeedEvent {
+  string    event_type = 1; // "new_post" | "vote_update"
+  GetPostResponse post = 2;
+}
