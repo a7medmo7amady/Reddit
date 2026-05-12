@@ -38,7 +38,6 @@ function sanitizePostResponse(post) {
     if (post.deleted) {
         return {
             id: post.id,
-            type: post.type,
             title: '[deleted]',
             community: post.community,
             deleted: true,
@@ -53,8 +52,8 @@ function sanitizePostResponse(post) {
 // ═════════════════════════════════════════════════════════════════════════════
 router.post('/posts', uploadFields, async (req, res) => {
     try {
-        console.log(`[CreatePost] Received ${req.body?.type || 'mixed'} post request. Title: "${req.body?.title}"`);
-        const { type, title, community, body, url, flair, nsfw, spoiler, oc } = req.body;
+        console.log(`[CreatePost] Received post request. Title: "${req.body?.title}"`);
+        const { title, community, body, url, flair, nsfw, spoiler, oc } = req.body;
 
         // ── Validation ────────────────────────────────────────────────────
         if (!title || title.length < 1 || title.length > 300) {
@@ -68,7 +67,6 @@ router.post('/posts', uploadFields, async (req, res) => {
         const authorId = req.headers['x-user-id'] || '';
 
         const postData = {
-            type:    type || 'mixed',
             title,
             community,
             authorId,
@@ -214,9 +212,7 @@ router.get('/posts/:id/history', async (req, res) => {
     try {
         const post = await PostModel.findById(req.params.id);
         if (!post) return res.status(404).json({ error: 'Post not found.' });
-        if (!['text', 'link'].includes(post.type)) {
-            return res.status(400).json({ error: 'Edit history is only available for text and link posts.' });
-        }
+        
         res.json({
             postId:       post.id,
             currentVersion: post.editVersion,
@@ -239,7 +235,7 @@ router.patch('/posts/:id', async (req, res) => {
         const { title, flair, body, url } = req.body;
         const updates = {};
 
-        // All post types: title and flair can be edited
+        // All fields can be edited if present
         if (title !== undefined) {
             if (title.length < 1 || title.length > 300) {
                 return res.status(400).json({ error: 'Title must be 1–300 characters.' });
@@ -247,38 +243,24 @@ router.patch('/posts/:id', async (req, res) => {
             updates.title = title;
         }
         if (flair !== undefined) updates.flair = flair;
+        if (body  !== undefined) updates.body  = body;
+        if (url   !== undefined) updates.url   = url;
 
-        // Text posts: body can be edited
-        if (post.type === 'text' && body !== undefined) {
-            updates.body = body;
-        }
+        // Note: Media (images/video) remains locked after submission for consistency
 
-        // Link posts: url can be edited
-        if (post.type === 'link' && url !== undefined) {
-            updates.url = url;
-        }
-
-        // Image/video posts: media fields are locked (FR-UC-04)
-        if ((post.type === 'image' || post.type === 'video') &&
-            (req.body.images !== undefined || req.body.video !== undefined)) {
-            return res.status(400).json({ error: 'Media cannot be replaced after submission. Only title and flair can be edited.' });
-        }
-
-        // Append a versioned snapshot to editHistory for text & link posts
-        if (['text', 'link'].includes(post.type)) {
-            const newVersion = (post.editVersion || 0) + 1;
-            updates.editVersion = newVersion;
-            updates.$push = {
-                editHistory: {
-                    version:  newVersion,
-                    title:    post.title,
-                    body:     post.body,
-                    url:      post.url,
-                    flair:    post.flair,
-                    editedAt: new Date()
-                }
-            };
-        }
+        // Append a versioned snapshot to editHistory
+        const newVersion = (post.editVersion || 0) + 1;
+        updates.editVersion = newVersion;
+        updates.$push = {
+            editHistory: {
+                version:  newVersion,
+                title:    post.title,
+                body:     post.body,
+                url:      post.url,
+                flair:    post.flair,
+                editedAt: new Date()
+            }
+        };
 
         // Mongoose doesn't support $push via findOneAndUpdate through our helper directly —
         // call Mongoose directly for the $push case

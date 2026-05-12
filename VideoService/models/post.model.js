@@ -37,8 +37,7 @@ const videoSchema = new mongoose.Schema({
 const postSchema = new mongoose.Schema({
     id:          { type: String, required: true, unique: true },
 
-    // Content fields — all optional to allow mixed content (FR-UC-01 update)
-    type:        { type: String, default: 'mixed' }, 
+    // Content fields — all optional to allow mixed content
     title:       { type: String, required: true, minlength: 1, maxlength: 300 },
     community:   { type: String, required: true },
     authorId:    { type: String, default: '' },

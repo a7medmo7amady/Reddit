@@ -25,7 +25,7 @@
             }
         },
         {
-            "name": "01. Create Mixed Post",
+            "name": "01. Create Post",
             "event": [{
                 "listen": "test",
                 "script": {
@@ -46,13 +46,12 @@
                 "body": {
                     "mode": "formdata",
                     "formdata": [
-                        { "key": "title", "value": "The Ultimate Mixed Post", "type": "text" },
+                        { "key": "title", "value": "A New Unified Post", "type": "text" },
                         { "key": "community", "value": "r/all", "type": "text" },
-                        { "key": "type", "value": "mixed", "type": "text" },
-                        { "key": "body", "value": "Check out this mixed post with text, images, and video!", "type": "text" },
+                        { "key": "body", "value": "This post can have any combination of text, images, or video.", "type": "text" },
                         { "key": "url", "value": "https://google.com", "type": "text" },
-                        { "key": "images", "type": "file", "src": [], "description": "Select 1-5 images" },
-                        { "key": "video", "type": "file", "src": [], "description": "Select 1 video" }
+                        { "key": "images", "type": "file", "src": [], "description": "Optional: Select 1-5 images" },
+                        { "key": "video", "type": "file", "src": [], "description": "Optional: Select 1 video" }
                     ]
                 },
                 "url": {
@@ -61,7 +60,7 @@
                     "host": ["{{host}}"],
                     "path": ["posts"]
                 },
-                "description": "Upload everything at once! Use the 'File' selector in the Body tab for images/video."
+                "description": "Create a post with any combination of content. All fields (body, url, images, video) are optional."
             }
         },
         {
