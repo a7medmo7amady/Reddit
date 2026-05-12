@@ -1,60 +1,70 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
 
+	rl "api-gateway/pkg/ratelimit"
+	"api-gateway/pkg/logger"
+
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 )
+
+var (
+	redisLimiter *rl.Limiter
+	rlOnce       sync.Once
+)
+
+func SetRedisLimiter(l *rl.Limiter) {
+	rlOnce.Do(func() { redisLimiter = l })
+}
 
 type entry struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
 }
 
-type rateLimiter struct {
+type memLimiter struct {
 	mu      sync.Mutex
 	entries map[string]*entry
 	r       rate.Limit
 	burst   int
 }
 
-func newRateLimiter(r rate.Limit, burst int) *rateLimiter {
-	rl := &rateLimiter{
-		entries: make(map[string]*entry),
-		r:       r,
-		burst:   burst,
-	}
+func newMemLimiter(r rate.Limit, burst int) *memLimiter {
+	ml := &memLimiter{entries: make(map[string]*entry), r: r, burst: burst}
 	go func() {
 		for {
 			time.Sleep(5 * time.Minute)
-			rl.mu.Lock()
-			for key, e := range rl.entries {
+			ml.mu.Lock()
+			for key, e := range ml.entries {
 				if time.Since(e.lastSeen) > 10*time.Minute {
-					delete(rl.entries, key)
+					delete(ml.entries, key)
 				}
 			}
-			rl.mu.Unlock()
+			ml.mu.Unlock()
 		}
 	}()
-	return rl
+	return ml
 }
 
-func (rl *rateLimiter) allow(key string) bool {
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-	e, ok := rl.entries[key]
+func (ml *memLimiter) allow(key string) bool {
+	ml.mu.Lock()
+	defer ml.mu.Unlock()
+	e, ok := ml.entries[key]
 	if !ok {
-		e = &entry{limiter: rate.NewLimiter(rl.r, rl.burst)}
-		rl.entries[key] = e
+		e = &entry{limiter: rate.NewLimiter(ml.r, ml.burst)}
+		ml.entries[key] = e
 	}
 	e.lastSeen = time.Now()
 	return e.limiter.Allow()
 }
 
-var userLimiter = newRateLimiter(30, 60)
+var fallback = newMemLimiter(30, 60)
+
 
 func RateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -62,7 +72,21 @@ func RateLimit() gin.HandlerFunc {
 		if key == "" {
 			key = c.ClientIP()
 		}
-		if !userLimiter.allow(key) {
+
+		allowed := false
+
+		if redisLimiter != nil {
+			var err error
+			allowed, err = redisLimiter.Allow(context.Background(), key)
+			if err != nil {
+				logger.Warnf("redis rate limiter error, using fallback: %v\n", err)
+				allowed = fallback.allow(key)
+			}
+		} else {
+			allowed = fallback.allow(key)
+		}
+
+		if !allowed {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
 				"error": "rate limit exceeded",
 			})
