@@ -153,10 +153,11 @@ router.post('/posts', uploadFields, async (req, res) => {
 // ═════════════════════════════════════════════════════════════════════════════
 router.get('/posts', async (req, res) => {
     try {
-        const { community, limit, page } = req.query;
+        const { community, dateRange, limit, page } = req.query;
         
         const result = await PostModel.findList({
             community,
+            dateRange,
             limit: parseInt(limit) || 10,
             page:  parseInt(page) || 1
         });

@@ -92,9 +92,23 @@ class PostModel {
         return await Post.find({ deleted: false }).sort({ createdAt: -1 });
     }
 
-    static async findList({ community, limit = 10, page = 1 }) {
+    static async findList({ community, dateRange, limit = 10, page = 1 }) {
         const query = { deleted: false };
         if (community) query.community = community;
+
+        if (dateRange && dateRange !== 'all') {
+            const now = new Date();
+            let startDate;
+            if (dateRange === 'week') {
+                startDate = new Date(now.setDate(now.getDate() - 7));
+            } else if (dateRange === 'month') {
+                startDate = new Date(now.setMonth(now.getMonth() - 1));
+            }
+
+            if (startDate) {
+                query.createdAt = { $gte: startDate };
+            }
+        }
 
         const skip = (page - 1) * limit;
         
