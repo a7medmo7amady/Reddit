@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"notification-service/internal/model"
 	"notification-service/internal/repository"
+	"notification-service/pkg/email"
 	"notification-service/pkg/websocket"
 )
 
@@ -21,12 +23,14 @@ type NotificationService interface {
 type notificationService struct {
 	redisRepo repository.RedisRepository
 	hub       *websocket.Hub
+	emailSvc  email.EmailService
 }
 
-func NewNotificationService(redisRepo repository.RedisRepository, hub *websocket.Hub) NotificationService {
+func NewNotificationService(redisRepo repository.RedisRepository, hub *websocket.Hub, emailSvc email.EmailService) NotificationService {
 	return &notificationService{
 		redisRepo: redisRepo,
 		hub:       hub,
+		emailSvc:  emailSvc,
 	}
 }
 
@@ -42,7 +46,20 @@ func (s *notificationService) CreateNotification(ctx context.Context, n *model.N
 
 	// 3. If offline or WebSocket push failed, queue in Redis
 	log.Printf("User %s is offline, queuing notification in Redis", n.UserID)
-	return s.redisRepo.EnqueueOfflineNotification(ctx, n.UserID, n)
+	if err := s.redisRepo.EnqueueOfflineNotification(ctx, n.UserID, n); err != nil {
+		return err
+	}
+
+	// 4. Send email notification if offline
+	// In a real app, fetch email from user-service. For now, using a placeholder.
+	userEmail := fmt.Sprintf("%s@example.com", n.UserID) 
+	subject := fmt.Sprintf("New Reddit Notification: %s", n.Title)
+	body := fmt.Sprintf("Hello,\n\nYou have a new notification on Reddit:\n\n%s\n\nCheck it out here: %s", n.Message, n.Link)
+	
+	log.Printf("User %s is offline, sending email to %s", n.UserID, userEmail)
+	go s.emailSvc.SendNotification(userEmail, subject, body)
+
+	return nil
 }
 
 func (s *notificationService) DeliverOfflineNotifications(ctx context.Context, userID string) error {

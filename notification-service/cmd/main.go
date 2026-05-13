@@ -7,6 +7,7 @@ import (
 	"notification-service/internal/handler"
 	"notification-service/internal/repository"
 	"notification-service/internal/service"
+	"notification-service/pkg/email"
 	"notification-service/pkg/websocket"
 	"os"
 
@@ -39,12 +40,15 @@ func main() {
 	}
 	redisRepo := repository.NewRedisRepository(rdb)
 
+	// Initialize Email Service
+	emailSvc := email.NewEmailService()
+
 	// Initialize WebSocket hub
 	hub := websocket.NewHub()
 	go hub.Run()
 
 	// Initialize services and handlers
-	svc := service.NewNotificationService(redisRepo, hub)
+	svc := service.NewNotificationService(redisRepo, hub, emailSvc)
 	h := handler.NewNotificationHandler(svc)
 
 	r := gin.Default()
