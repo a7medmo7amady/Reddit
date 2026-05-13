@@ -139,11 +139,15 @@ services:
     restart: unless-stopped
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: .
+      dockerfile: ./notification-service/Dockerfile
     ports:
       - "8084:8084"
+      - "50055:50055"
     environment:
       - PORT=8084
+      - GRPC_PORT=50055
       - KAFKA_BROKERS=kafka:9092
       - REDIS_URL=redis:6379
       - MONGO_URI=mongodb://mongo:27017/reddit_clone

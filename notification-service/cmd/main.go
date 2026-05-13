@@ -14,6 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 	gorilla "github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+	"google.golang.org/grpc"
+	"net"
+	pb "notification-service/pkg/proto/notification"
 )
 
 var upgrader = gorilla.Upgrader{
@@ -80,7 +83,29 @@ func main() {
 		port = "8084"
 	}
 
-	log.Printf("Notification Service starting on port %s", port)
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50055"
+	}
+
+	// Start gRPC server
+	go func() {
+		lis, err := net.Listen("tcp", ":"+grpcPort)
+		if err != nil {
+			log.Fatalf("failed to listen for gRPC: %v", err)
+		}
+
+		s := grpc.NewServer()
+		grpcHandler := handler.NewGrpcNotificationHandler(svc)
+		pb.RegisterNotificationServiceServer(s, grpcHandler)
+
+		log.Printf("Notification gRPC Service starting on port %s", grpcPort)
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
+
+	log.Printf("Notification HTTP Service starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}

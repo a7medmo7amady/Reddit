@@ -23,8 +23,10 @@ type Notification struct {
 }
 
 type NotificationPreference struct {
-	UserID            string `json:"user_id" bson:"user_id"`
-	InAppEnabled      bool   `json:"in_app_enabled" bson:"in_app_enabled"`
-	EmailEnabled      bool   `json:"email_enabled" bson:"email_enabled"`
-	LastOnlineAt      time.Time `json:"last_online_at" bson:"last_online_at"`
+	UserID       string   `json:"user_id" bson:"user_id"`
+	InAppEnabled bool     `json:"in_app_enabled" bson:"in_app_enabled"`
+	EmailEnabled bool     `json:"email_enabled" bson:"email_enabled"`
+	PushEnabled  bool     `json:"push_enabled" bson:"push_enabled"`
+	MutedTypes   []string `json:"muted_types" bson:"muted_types"`
+	LastOnlineAt time.Time `json:"last_online_at" bson:"last_online_at"`
 }
