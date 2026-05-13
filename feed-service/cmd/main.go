@@ -38,9 +38,11 @@ func main() {
 	log.Println("Trending posts seeded into Redis")
 
 	pc := cache.NewPostCache(rdb)
+	bc := cache.NewBanCache(rdb)
 
 	brokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
 	kafka.StartPostConsumer(ctx, brokers, tc, pc)
+	kafka.StartBanConsumer(ctx, brokers, bc)
 
 	r := gin.Default()
 

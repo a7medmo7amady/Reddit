@@ -41,6 +41,7 @@ dependencies {
 	runtimeOnly 'com.h2database:h2'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
+	implementation 'org.springframework.kafka:spring-kafka'
 }
 
 tasks.named('test') {

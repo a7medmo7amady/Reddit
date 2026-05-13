@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"feed-service/internal/cache"
 	"feed-service/internal/model"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 )
+
+// ── post consumer ─────────────────────────────────────────────────────────────
 
 type PostEvent struct {
 	ID           string `json:"id"`
@@ -25,52 +28,91 @@ type PostEvent struct {
 }
 
 func StartPostConsumer(ctx context.Context, brokers []string, tc *cache.TrendingCache, pc *cache.PostCache) {
-	r := kafka.NewReader(kafka.ReaderConfig{
+	r := newReader(brokers, "post", "feed-service-v1")
+	go consume(ctx, r, "post", func(raw []byte) error {
+		var e PostEvent
+		if err := json.Unmarshal(raw, &e); err != nil {
+			return err
+		}
+		post := model.Post{
+			StringID:     e.ID,
+			Title:        e.Title,
+			Body:         e.Body,
+			Community:    e.Community,
+			Author:       e.AuthorID,
+			Score:        e.Upvotes - e.Downvotes,
+			CommentCount: e.CommentCount,
+			CreatedAt:    e.CreatedAt,
+		}
+		return pc.Add(ctx, post)
+	})
+}
+
+// ── community.ban consumer ────────────────────────────────────────────────────
+
+type BanEvent struct {
+	UserID    string `json:"userId"`
+	Username  string `json:"username"`
+	Community string `json:"community"`
+	Action    string `json:"action"` // "BANNED" or "UNBANNED"
+	Reason    string `json:"reason"`
+}
+
+func StartBanConsumer(ctx context.Context, brokers []string, bc *cache.BanCache) {
+	r := newReader(brokers, "community.ban", "feed-ban-service-v1")
+	go consume(ctx, r, "community.ban", func(raw []byte) error {
+		var e BanEvent
+		if err := json.Unmarshal(raw, &e); err != nil {
+			return err
+		}
+		switch e.Action {
+		case "BANNED":
+			err := bc.Ban(ctx, e.UserID, e.Community)
+			if err == nil {
+				log.Printf("[BanCache] user %s (%s) banned from r/%s", e.Username, e.UserID, e.Community)
+			}
+			return err
+		case "UNBANNED":
+			err := bc.Unban(ctx, e.UserID, e.Community)
+			if err == nil {
+				log.Printf("[BanCache] user %s (%s) unbanned from r/%s", e.Username, e.UserID, e.Community)
+			}
+			return err
+		default:
+			return fmt.Errorf("unknown ban action: %s", e.Action)
+		}
+	})
+}
+
+// ── shared helpers ────────────────────────────────────────────────────────────
+
+func newReader(brokers []string, topic, groupID string) *kafka.Reader {
+	return kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        brokers,
-		Topic:          "post",
-		GroupID:        "feed-service-v1",
+		Topic:          topic,
+		GroupID:        groupID,
 		MinBytes:       1,
-		MaxBytes:       1 << 20, // 1 MB
+		MaxBytes:       1 << 20,
 		MaxWait:        500 * time.Millisecond,
 		CommitInterval: time.Second,
 	})
+}
 
-	go func() {
-		defer r.Close()
-		log.Println("[Kafka] Post consumer started")
-		for {
-			msg, err := r.ReadMessage(ctx)
-			if err != nil {
-				if ctx.Err() != nil {
-					return
-				}
-				log.Printf("[Kafka] read error: %v", err)
-				time.Sleep(2 * time.Second)
-				continue
+func consume(ctx context.Context, r *kafka.Reader, topic string, handle func([]byte) error) {
+	defer r.Close()
+	log.Printf("[Kafka] consumer started for topic: %s", topic)
+	for {
+		msg, err := r.ReadMessage(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
 			}
-
-			var event PostEvent
-			if err := json.Unmarshal(msg.Value, &event); err != nil {
-				log.Printf("[Kafka] unmarshal error: %v", err)
-				continue
-			}
-
-			post := model.Post{
-				StringID:     event.ID,
-				Title:        event.Title,
-				Body:         event.Body,
-				Community:    event.Community,
-				Author:       event.AuthorID,
-				Score:        event.Upvotes - event.Downvotes,
-				CommentCount: event.CommentCount,
-				CreatedAt:    event.CreatedAt,
-			}
-
-			if err := pc.Add(ctx, post); err != nil {
-				log.Printf("[Kafka] cache write error: %v", err)
-			} else {
-				log.Printf("[Kafka] cached post %s in r/%s", event.ID, event.Community)
-			}
+			log.Printf("[Kafka:%s] read error: %v", topic, err)
+			time.Sleep(2 * time.Second)
+			continue
 		}
-	}()
+		if err := handle(msg.Value); err != nil {
+			log.Printf("[Kafka:%s] handle error: %v", topic, err)
+		}
+	}
 }
