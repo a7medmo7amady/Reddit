@@ -32,7 +32,7 @@ async function start() {
         console.log('[UploadService] Storage buckets ready (staging, serving, images).');
 
         await kafkaService.connect();
-        await kafkaService.createTopics(['video.uploaded', 'video.processing', 'video.ready']);
+        await kafkaService.createTopics(['video.uploaded', 'video.processing', 'video.ready', 'post']);
 
         // Video uploaded → begin transcoding pipeline
         await kafkaService.subscribe('video.uploaded', async (payload) => {

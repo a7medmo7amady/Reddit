@@ -109,12 +109,24 @@ router.post('/posts', uploadFields, async (req, res) => {
         const post = await PostModel.create(postId, postData);
         console.log(`[CreatePost] Post saved. ID: ${postId}`);
 
-        // ── Handle Background Video Upload ────────────────────────────────
+        // ── Publish post.created event for feed-service ───────────────────
+        await kafkaService.publish('post', {
+            id:           postId,
+            title:        post.title,
+            body:         post.body       || '',
+            community:    post.community,
+            authorId:     post.authorId,
+            type:         videoFile ? 'video' : (req.files?.images?.length ? 'image' : (url ? 'link' : 'text')),
+            upvotes:      0,
+            downvotes:    0,
+            commentCount: 0,
+            createdAt:    post.createdAt,
+        });
+
         if (videoFile && s3Key) {
-            // Respond with 202 because video processing is pending
-            res.status(202).json({ 
-                postId, 
-                status: 'uploading', 
+            res.status(202).json({
+                postId,
+                status: 'uploading',
                 message: 'Post created. Video upload started in background.',
                 post: sanitizePostResponse(post)
             });
