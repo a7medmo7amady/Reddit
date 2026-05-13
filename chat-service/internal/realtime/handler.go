@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -8,17 +9,18 @@ import (
 )
 
 type Handler struct {
-	hub        *Hub
-	dispatcher *Dispatcher
-	limiter    chan struct{}
+	hub            *Hub
+	dispatcher     *Dispatcher
+	typingNotifier TypingNotifier
+	limiter        chan struct{}
 }
 
-func NewHandler(hub *Hub, dispatcher *Dispatcher, maxConns int) *Handler {
+func NewHandler(hub *Hub, dispatcher *Dispatcher, typingNotifier TypingNotifier, maxConns int) *Handler {
 	var limiter chan struct{}
 	if maxConns > 0 {
 		limiter = make(chan struct{}, maxConns)
 	}
-	return &Handler{hub: hub, dispatcher: dispatcher, limiter: limiter}
+	return &Handler{hub: hub, dispatcher: dispatcher, typingNotifier: typingNotifier, limiter: limiter}
 }
 
 var upgrader = websocket.Upgrader{
@@ -48,12 +50,16 @@ func (h *Handler) Connect(c *gin.Context) {
 		return
 	}
 
+	clientCtx, cancel := context.WithCancel(context.Background())
 	client := &Client{
-		UserID: userID,
-		Conn:   conn,
-		Send:   make(chan []byte, 256),
-		Hub:    h.hub,
+		UserID:         userID,
+		Conn:           conn,
+		Send:           make(chan []byte, 256),
+		Hub:            h.hub,
+		Context:        clientCtx,
+		TypingNotifier: h.typingNotifier,
 		OnClose: func() {
+			cancel()
 			if h.limiter != nil {
 				select {
 				case <-h.limiter:

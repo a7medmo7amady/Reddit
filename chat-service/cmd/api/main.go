@@ -70,7 +70,7 @@ func main() {
 	chatService.Start(ctx)
 	chatHandler := handlers.NewChatHandler(chatService)
 
-	wsHandler := realtime.NewHandler(hub, dispatcher, cfg.MaxWSConns)
+	wsHandler := realtime.NewHandler(hub, dispatcher, chatService, cfg.MaxWSConns)
 
 	r := gin.Default()
 	chathttp.RegisterRoutes(r, chatHandler, wsHandler)

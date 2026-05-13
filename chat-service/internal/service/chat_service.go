@@ -27,6 +27,7 @@ type UserClient interface {
 
 type RealtimeDispatcher interface {
 	PublishToUsers(ctx context.Context, userIDs []string, payload any)
+	PublishTransientToUsers(ctx context.Context, userIDs []string, payload any)
 }
 
 type ChatService struct {
@@ -276,6 +277,37 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID string, req dto.
 	}
 
 	return &message, queued, nil
+}
+
+func (s *ChatService) NotifyTyping(ctx context.Context, userID, conversationIDHex string) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	isParticipant, err := s.isParticipant(ctx, conversationID, userID)
+	if err != nil {
+		return err
+	}
+	if !isParticipant {
+		return errors.New("user is not a participant")
+	}
+
+	otherParticipants, err := s.getOtherParticipants(ctx, conversationID, userID)
+	if err != nil {
+		return err
+	}
+
+	if s.rt != nil {
+		s.rt.PublishTransientToUsers(ctx, otherParticipants, map[string]any{
+			"type":           "chat.typing",
+			"conversationId": conversationID.Hex(),
+			"userId":         userID,
+			"expiresAt":      time.Now().UTC().Add(5 * time.Second),
+		})
+	}
+
+	return nil
 }
 
 func (s *ChatService) persistMessage(ctx context.Context, message models.Message) error {

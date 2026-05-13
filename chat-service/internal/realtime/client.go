@@ -1,6 +1,8 @@
 package realtime
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -15,11 +17,22 @@ const (
 )
 
 type Client struct {
-	UserID  string
-	Conn    *websocket.Conn
-	Send    chan []byte
-	Hub     *Hub
-	OnClose func()
+	UserID         string
+	Conn           *websocket.Conn
+	Send           chan []byte
+	Hub            *Hub
+	Context        context.Context
+	OnClose        func()
+	TypingNotifier TypingNotifier
+}
+
+type TypingNotifier interface {
+	NotifyTyping(ctx context.Context, userID, conversationID string) error
+}
+
+type clientEvent struct {
+	Type           string `json:"type"`
+	ConversationID string `json:"conversationId"`
 }
 
 func (c *Client) ReadPump() {
@@ -44,7 +57,31 @@ func (c *Client) ReadPump() {
 			break
 		}
 
-		log.Printf("ws message from user=%s payload=%s", c.UserID, string(message))
+		c.handleMessage(message)
+	}
+}
+
+func (c *Client) handleMessage(message []byte) {
+	var event clientEvent
+	if err := json.Unmarshal(message, &event); err != nil {
+		log.Printf("invalid ws message from user=%s: %v", c.UserID, err)
+		return
+	}
+
+	switch event.Type {
+	case "chat.typing", "typing":
+		if c.TypingNotifier == nil {
+			return
+		}
+		ctx := c.Context
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		if err := c.TypingNotifier.NotifyTyping(ctx, c.UserID, event.ConversationID); err != nil {
+			log.Printf("typing event rejected for user=%s conversation=%s: %v", c.UserID, event.ConversationID, err)
+		}
+	default:
+		log.Printf("unknown ws message type from user=%s type=%s", c.UserID, event.Type)
 	}
 }
 

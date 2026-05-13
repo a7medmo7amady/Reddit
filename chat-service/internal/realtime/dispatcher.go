@@ -93,6 +93,30 @@ func (d *Dispatcher) PublishToUsers(ctx context.Context, userIDs []string, paylo
 	}
 }
 
+func (d *Dispatcher) PublishTransientToUsers(ctx context.Context, userIDs []string, payload any) {
+	if len(userIDs) == 0 {
+		return
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+
+	for _, userID := range userIDs {
+		if d.hub.IsUserConnected(userID) {
+			d.hub.SendRawToUser(userID, data)
+		}
+	}
+
+	if d.fanout != nil {
+		envBytes, err := json.Marshal(FanoutEnvelope{Source: d.instanceID, UserIDs: userIDs, Payload: data})
+		if err == nil {
+			_ = d.fanout.Publish(ctx, "chat:fanout", envBytes)
+		}
+	}
+}
+
 func (d *Dispatcher) DrainOffline(ctx context.Context, userID string) {
 	if d.offline == nil {
 		return
