@@ -15,7 +15,7 @@ func Logging() gin.HandlerFunc {
 		logger.Infof("%s %s → %d (%s)\n",
 			c.Request.Method,
 			c.Request.URL.Path,
-			c.Writer.Status(),
+			c.Writer.Status(),	
 			time.Since(start),
 		)
 	}

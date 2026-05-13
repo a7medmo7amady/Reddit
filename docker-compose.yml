@@ -1,5 +1,17 @@
 services:
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
   consul:
     image: hashicorp/consul:1.19
     command: agent -dev -client=0.0.0.0
@@ -41,6 +53,7 @@ services:
       PORT: "8088"
       GRPC_PORT: "9090"
       JWT_SECRET: ${JWT_SECRET}
+      REDIS_ADDR: "redis:6379"
       CONSUL_ADDR: "consul:8500"
       # Static fallbacks (used when Consul lookup fails)
       USER_SERVICE_URL: http://user-service:8080
@@ -55,6 +68,8 @@ services:
       VIDEO_GRPC_ADDR: video-service:50054
       NOTIFICATION_GRPC_ADDR: notification-service:50055
     depends_on:
+      redis:
+        condition: service_healthy
       consul:
         condition: service_healthy
       user-service:
@@ -142,3 +157,4 @@ volumes:
   postgres_data:
   mongo_data:
   kafka_data:
+  redis_data:

@@ -50,6 +50,10 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UserNotFoundException("Invalid email or password"));
 
+        if (user.isBanned()) {
+            throw new SecurityException("User is banned");
+        }
+
         if (user.getOauthProvider() != null) {
             throw new OAuthLoginRequiredException(user.getOauthProvider().toString());
         }

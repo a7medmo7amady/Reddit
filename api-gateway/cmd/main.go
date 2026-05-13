@@ -14,8 +14,10 @@ import (
 	"api-gateway/internal/proxy"
 	consulpkg "api-gateway/pkg/consul"
 	"api-gateway/pkg/logger"
+	rlpkg "api-gateway/pkg/ratelimit"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -24,6 +26,18 @@ func main() {
 	cfg := config.Load()
 	middleware.SetJWTSecret(cfg.JWTSecret)
 
+	// ── Redis rate limiter ────────────────────────────────────────────────────
+	if cfg.RedisAddr != "" {
+		rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+		if err := rlpkg.Ping(rdb); err != nil {
+			logger.Warnf("Redis unreachable (%v), falling back to in-memory rate limiter\n", err)
+		} else {
+			middleware.SetRedisLimiter(rlpkg.New(rdb, time.Second, 30))
+			logger.Infof("Redis rate limiter enabled at %s\n", cfg.RedisAddr)
+		}
+	}
+
+	// ── Consul resolver ───────────────────────────────────────────────────────
 	resolve := staticResolver(cfg)
 	if cfg.ConsulAddr != "" {
 		r, err := consulpkg.New(cfg.ConsulAddr)
