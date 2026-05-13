@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import styles from "./page.module.css";
+import { saveToken, getToken, logout, fetchWithAuth } from "@/lib/auth";
 
 type AuthMode = "login" | "signup";
 
@@ -15,20 +16,26 @@ export default function Home() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [isAuthed, setIsAuthed] = useState(false);
 
   const isSignup = mode === "signup";
 
-  // Pick up the token that the OAuth redirect drops in the URL
+  // Restore auth state from cookie, or pick up the token the OAuth redirect drops in the URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("accessToken");
-    if (token) {
-      setAccessToken(token);
-      // Remove the token from the URL without a page reload
+    const urlToken = params.get("accessToken");
+
+    if (urlToken) {
+      saveToken(urlToken);
+      setIsAuthed(true);
       const clean = new URL(window.location.href);
       clean.searchParams.delete("accessToken");
       window.history.replaceState({}, "", clean.toString());
+      return;
+    }
+
+    if (getToken()) {
+      setIsAuthed(true);
     }
   }, []);
 
@@ -65,7 +72,8 @@ export default function Home() {
           setError(data.message ?? "Signup failed. Please try again.");
           return;
         }
-        setAccessToken(data.accessToken);
+        saveToken(data.accessToken);
+        setIsAuthed(true);
       } else {
         const res = await fetch(`${API_URL}/auth/login`, {
           method: "POST",
@@ -79,7 +87,8 @@ export default function Home() {
           setError(data.message ?? "Invalid email or password.");
           return;
         }
-        setAccessToken(data.accessToken);
+        saveToken(data.accessToken);
+        setIsAuthed(true);
       }
     } catch {
       setError("Network error. Is the server running?");
@@ -88,7 +97,12 @@ export default function Home() {
     }
   };
 
-  if (accessToken) {
+  const handleLogout = async () => {
+    await logout();
+    setIsAuthed(false);
+  };
+
+  if (isAuthed) {
     return (
       <main className={styles.page}>
         <header className={styles.header}>
@@ -107,6 +121,9 @@ export default function Home() {
           <div className={styles.authCard}>
             <h1>You&apos;re in!</h1>
             <p>Successfully signed in.</p>
+            <button className={styles.submitButton} onClick={handleLogout}>
+              Log Out
+            </button>
           </div>
         </section>
       </main>
@@ -156,7 +173,11 @@ export default function Home() {
             <span>OR</span>
           </div>
 
-          {error && <p role="alert" className={styles.errorText}>{error}</p>}
+          {error && (
+            <p role="alert" className={styles.errorText}>
+              {error}
+            </p>
+          )}
 
           <div className={styles.fields}>
             {isSignup && (
@@ -195,7 +216,7 @@ export default function Home() {
               <button
                 aria-label={showPassword ? "Hide password" : "Show password"}
                 type="button"
-                onClick={() => setShowPassword((value) => !value)}
+                onClick={() => setShowPassword((v) => !v)}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
@@ -218,7 +239,7 @@ export default function Home() {
                       : "Show confirm password"
                   }
                   type="button"
-                  onClick={() => setShowConfirmPassword((value) => !value)}
+                  onClick={() => setShowConfirmPassword((v) => !v)}
                 >
                   {showConfirmPassword ? "Hide" : "Show"}
                 </button>
