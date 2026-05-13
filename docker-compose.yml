@@ -130,11 +130,15 @@ services:
     restart: unless-stopped
 
   search-service:
-    build: ./search-service
+    build:
+      context: .
+      dockerfile: ./search-service/Dockerfile
     ports:
       - "8082:8082"
+      - "50053:50053"
     environment:
       - PORT=8082
+      - GRPC_PORT=50053
       - ELASTICSEARCH_URL=http://elasticsearch:9200
     depends_on:
       - elasticsearch

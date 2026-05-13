@@ -11,6 +11,9 @@ import (
 	"search-service/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
+	"net"
+	pb "search-service/pkg/proto/search"
 )
 
 func main() {
@@ -71,7 +74,29 @@ func main() {
 		port = "8082"
 	}
 
-	log.Printf("Search service starting on port %s", port)
+	grpcPort := os.Getenv("GRPC_PORT")
+	if grpcPort == "" {
+		grpcPort = "50053"
+	}
+
+	// Start gRPC server
+	go func() {
+		lis, err := net.Listen("tcp", ":"+grpcPort)
+		if err != nil {
+			log.Fatalf("failed to listen for gRPC: %v", err)
+		}
+
+		s := grpc.NewServer()
+		grpcHandler := handler.NewGrpcSearchHandler(searchService)
+		pb.RegisterSearchServiceServer(s, grpcHandler)
+
+		log.Printf("Search gRPC Service starting on port %s", grpcPort)
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve gRPC: %v", err)
+		}
+	}()
+
+	log.Printf("Search HTTP Service starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
