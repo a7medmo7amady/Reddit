@@ -46,9 +46,9 @@ services:
 
   api-gateway:
     build: ./api-gateway
-    expose:
-      - "8088"   # HTTP / REST
-      - "9090"   # gRPC (h2c)
+    ports:
+      - "8088:8088"   # HTTP / REST
+      - "9090:9090"   # gRPC (h2c)
     environment:
       PORT: "8088"
       GRPC_PORT: "9090"
@@ -103,11 +103,16 @@ services:
     restart: unless-stopped
 
   user-service:
-    build: ./User
+    build: ./user-service
     ports:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reddit_clone
+      MONGO_HOST: mongo
+      MONGO_PORT: "27017"
+      MONGO_DB: reddit_clone
     depends_on:
       - postgres
       - mongo

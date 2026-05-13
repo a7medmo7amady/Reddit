@@ -44,7 +44,7 @@ func main() {
 		if err != nil {
 			logger.Fatalf("consul init: %v\n", err)
 		}
-		resolve = consulResolver(r)
+		resolve = consulResolver(cfg, r)
 		logger.Infof("Consul service discovery enabled at %s\n", cfg.ConsulAddr)
 	}
 
@@ -93,6 +93,8 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 
 	// Public
 	r.Any("/auth/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
+	r.Any("/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
+	r.Any("/login/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 
 	// Protected
 	protected := r.Group("/")
@@ -140,13 +142,16 @@ func staticResolver(cfg *config.Config) func(string) string {
 	return func(name string) string { return m[name] }
 }
 
-func consulResolver(r *consulpkg.Resolver) func(string) string {
+func consulResolver(cfg *config.Config, r *consulpkg.Resolver) func(string) string {
+	static := staticResolver(cfg)
 	names := []string{"user", "feed", "search", "video", "notification"}
 	m := make(map[string]string, len(names))
 	for _, name := range names {
 		url, err := r.Resolve(name)
 		if err != nil {
-			logger.Warnf("consul: could not resolve %q (%v), will skip\n", name, err)
+			fallback := static(name)
+			logger.Warnf("consul: could not resolve %q (%v), falling back to %s\n", name, err, fallback)
+			m[name] = fallback
 			continue
 		}
 		m[name] = url

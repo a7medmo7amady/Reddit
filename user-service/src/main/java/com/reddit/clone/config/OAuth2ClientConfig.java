@@ -16,7 +16,7 @@ public class OAuth2ClientConfig {
     public ClientRegistrationRepository clientRegistrationRepository(
             @Value("${spring.security.oauth2.client.registration.google.client-id:918578646108-lc89g232b4fbf2tnqjqdg9vt7292nklh.apps.googleusercontent.com}") String clientId,
             @Value("${spring.security.oauth2.client.registration.google.client-secret:}") String clientSecret,
-            @Value("${spring.security.oauth2.client.registration.google.redirect-uri:http://localhost:8080/login/oauth2/code/google}") String redirectUri) {
+            @Value("${spring.security.oauth2.client.registration.google.redirect-uri:http://localhost:8088/login/oauth2/code/google}") String redirectUri) {
         ClientRegistration google = ClientRegistration.withRegistrationId("google")
                 .clientId(clientId)
                 .clientSecret(clientSecret)

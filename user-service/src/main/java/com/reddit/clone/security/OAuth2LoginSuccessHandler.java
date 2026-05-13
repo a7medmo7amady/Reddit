@@ -6,8 +6,8 @@ import com.reddit.clone.service.AuthService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -23,6 +23,9 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final AuthService authService;
     private final JWTservice jwtService;
     private final TokenService tokenService;
+
+    @Value("${client.redirect-url:http://localhost:3000}")
+    private String clientRedirectUrl;
 
     public OAuth2LoginSuccessHandler(AuthService authService,
                                      JWTservice jwtService,
@@ -46,9 +49,7 @@ public class OAuth2LoginSuccessHandler implements AuthenticationSuccessHandler {
         String accessToken = jwtService.generateAccessToken(user);
 
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken));
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setStatus(HttpServletResponse.SC_OK);
-        response.getWriter().write("{\"accessToken\":\"" + accessToken + "\"}");
+        response.sendRedirect(clientRedirectUrl + "?accessToken=" + accessToken);
     }
 
     private String refreshCookie(String token) {

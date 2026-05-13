@@ -81,7 +81,7 @@
   gap: 9px;
 }
 
-.oauthStack button {
+.oauthStack a {
   position: relative;
   min-height: 43px;
   display: flex;
@@ -97,7 +97,7 @@
   font-weight: 700;
 }
 
-.oauthStack button:hover {
+.oauthStack a:hover {
   background: #fff;
 }
 
@@ -143,7 +143,7 @@
   position: absolute;
   left: 17px;
   top: 50%;
-  color: #8aa0a8;
+  color: #bcc9cf;
   font-size: 16px;
   line-height: 1;
   transform: translateY(-50%);
@@ -156,40 +156,52 @@
 .fields input {
   width: 100%;
   height: 58px;
-  border: 1px solid transparent;
+  border: 1px solid #3a464c;
   border-radius: 20px;
-  background: #2a3338;
-  color: #eef3f5;
+  background: #21292d;
+  color: #ffffff;
   font: inherit;
   font-size: 16px;
   outline: none;
   padding: 20px 48px 6px 17px;
 }
 
+.fields input::placeholder {
+  color: transparent;
+}
+
 .fields input:focus {
-  border-color: #506168;
-  background: #303a3f;
+  border-color: #8c9aa0;
+  background: #263035;
+  box-shadow: 0 0 0 1px rgba(140, 154, 160, 0.28);
 }
 
 .fields label:focus-within span,
 .fields input:not(:placeholder-shown) + span {
   top: 16px;
-  color: #a8b3b8;
+  color: #dce5e9;
   font-size: 11px;
 }
 
 .passwordField button {
   position: absolute;
-  right: 16px;
+  right: 14px;
   top: 50%;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 50%;
+  min-width: 52px;
+  height: 32px;
+  border: 1px solid #445055;
+  border-radius: 999px;
   background: transparent;
-  color: #a8b3b8;
+  color: #eef3f5;
   cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
   transform: translateY(-50%);
+}
+
+.passwordField button:hover {
+  background: #2e383d;
 }
 
 .accountLinks {
@@ -202,6 +214,12 @@
 
 .accountLinks > button {
   width: fit-content;
+}
+
+.errorText {
+  color: #ff4500;
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 .submitButton {
