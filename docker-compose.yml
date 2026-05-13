@@ -144,6 +144,33 @@ services:
       - zookeeper
     restart: unless-stopped
 
+  search-service:
+    build:
+      context: .
+      dockerfile: ./search-service/Dockerfile
+    ports:
+      - "8082:8082"
+      - "50053:50053"
+    environment:
+      - PORT=8082
+      - GRPC_PORT=50053
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
   structurizr:
     image: structurizr/structurizr
     command: local
@@ -212,3 +239,4 @@ volumes:
   kafka_data:
   redis_data:
   minio_data:
+  elasticsearch_data:
