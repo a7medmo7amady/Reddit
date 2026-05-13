@@ -138,6 +138,20 @@ services:
       - ./Docs/Architecture:/usr/local/structurizr
     restart: unless-stopped
 
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - KAFKA_BROKERS=kafka:9092
+      - REDIS_URL=redis:6379
+      - MONGO_URI=mongodb://mongo:27017/reddit_clone
+    depends_on:
+      - kafka
+      - mongo
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mongo_data:
