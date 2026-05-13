@@ -58,7 +58,7 @@ public class User {
     @Enumerated(EnumType.STRING)
     private OAuthProvider oauthProvider;
 
-    @Column(nullable = false)
+    @Column(name = "is_banned", nullable = false, columnDefinition = "boolean NOT NULL DEFAULT false")
     private boolean isBanned = false;
 
     @Column(nullable = false, updatable = false)

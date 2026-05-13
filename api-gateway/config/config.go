@@ -8,8 +8,9 @@ type Config struct {
 
 	GRPCPort string
 
-	RedisAddr  string
-	ConsulAddr string
+	RedisAddr     string
+	ConsulAddr    string
+	AllowedOrigin string
 
 	UserServiceURL         string
 	FeedServiceURL         string
@@ -30,8 +31,9 @@ func Load() *Config {
 		JWTSecret: getEnv("JWT_SECRET", "changeme"),
 		GRPCPort:  getEnv("GRPC_PORT", "9090"),
 
-		RedisAddr:  getEnv("REDIS_ADDR", ""),
-		ConsulAddr: getEnv("CONSUL_ADDR", ""),
+		RedisAddr:     getEnv("REDIS_ADDR", ""),
+		ConsulAddr:    getEnv("CONSUL_ADDR", ""),
+		AllowedOrigin: getEnv("ALLOWED_ORIGIN", "http://localhost:3000"),
 
 		UserServiceURL:         getEnv("USER_SERVICE_URL", "http://user-service:8080"),
 		FeedServiceURL:         getEnv("FEED_SERVICE_URL", "http://feed-service:8081"),

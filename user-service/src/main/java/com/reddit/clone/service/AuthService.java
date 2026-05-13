@@ -41,13 +41,41 @@ public class AuthService {
         return userRepository.save(user);
     }
 
+    public User findOrCreateOAuthUser(String email, String name, String avatar, OAuthProvider provider) {
+        return userRepository.findByEmail(email)
+                .map(user -> {
+                    if (user.isBanned()) {
+                        throw new SecurityException("User is banned");
+                    }
+                    if (user.getOauthProvider() == null) {
+                        user.setOauthProvider(provider);
+                    }
+                    if (user.getDisplayName() == null || user.getDisplayName().isBlank()) {
+                        user.setDisplayName(name);
+                    }
+                    if (user.getAvatar() == null || user.getAvatar().isBlank()) {
+                        user.setAvatar(avatar);
+                    }
+                    return userRepository.save(user);
+                })
+                .orElseGet(() -> {
+                    String username = uniqueUsername(email, name);
+                    User user = userFactory.createOAuthUser(username, email, provider);
+                    user.setDisplayName(name);
+                    user.setAvatar(avatar);
+                    return userRepository.save(user);
+                });
+    }
+
     public User findById(Long id) {
         return userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 
-    public User login(String email, String password) {
-        User user = userRepository.findByEmail(email)
+    public User login(String identifier, String password) {
+        User user = (identifier.contains("@")
+                ? userRepository.findByEmail(identifier)
+                : userRepository.findByUsername(identifier))
                 .orElseThrow(() -> new UserNotFoundException("Invalid email or password"));
 
         if (user.isBanned()) {
@@ -75,5 +103,22 @@ public class AuthService {
         if (userRepository.existsByEmail(email)) {
             throw new UserAlreadyExistsException("Email already registered: " + email);
         }
+    }
+
+    private String uniqueUsername(String email, String name) {
+        String source = name != null && !name.isBlank() ? name : email.substring(0, email.indexOf('@'));
+        String base = source.toLowerCase()
+                .replaceAll("[^a-z0-9_]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if (base.isBlank()) {
+            base = "user";
+        }
+
+        String candidate = base;
+        int suffix = 1;
+        while (userRepository.existsByUsername(candidate)) {
+            candidate = base + "_" + suffix++;
+        }
+        return candidate;
     }
 }
