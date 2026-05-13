@@ -109,8 +109,8 @@ router.post('/posts', uploadFields, async (req, res) => {
         const post = await PostModel.create(postId, postData);
         console.log(`[CreatePost] Post saved. ID: ${postId}`);
 
-        // ── Publish post.created event for feed-service ───────────────────
-        await kafkaService.publish('post', {
+        // ── Publish post.created event for search and feed services ────────────────
+        await kafkaService.publish('post.created', {
             id:           postId,
             title:        post.title,
             body:         post.body       || '',
@@ -308,6 +308,9 @@ router.delete('/posts/:id', async (req, res) => {
             deleted:   true,
             deletedAt: new Date(),
         });
+
+        // ── Publish post.deleted event for search service ──────────────────
+        await kafkaService.publish('post.deleted', { id: req.params.id });
 
         res.json({ message: 'Post deleted. Media will be purged from storage within 24 hours.' });
     } catch (error) {

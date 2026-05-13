@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const CommentModel = require('../models/comment.model');
 const PostModel = require('../models/post.model');
+const kafkaService = require('../services/kafka.service');
 
 // ── GET /posts/:postId/comments ──────────────────────────────────────────────
 // Fetch paginated comments for a specific post
@@ -49,6 +50,15 @@ router.post('/posts/:postId/comments', async (req, res) => {
 
         // Increment comment count on the post
         await PostModel.update(postId, { $inc: { commentCount: 1 } });
+
+        // ── Publish comment.created event for search service ───────────────
+        await kafkaService.publish('comment.created', {
+            id:       commentId,
+            postId:   postId,
+            authorId: authorId,
+            body:     body,
+            createdAt: comment.createdAt
+        });
 
         res.status(201).json(comment);
     } catch (error) {
