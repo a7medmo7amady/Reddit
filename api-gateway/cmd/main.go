@@ -90,6 +90,7 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		"search":       resolve("search"),
 		"video":        resolve("video"),
 		"notification": resolve("notification"),
+		"chat":         resolve("chat"),
 	}))
 	
 	r.Any("/auth/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
@@ -105,6 +106,7 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.Any("/notifications/*path", gin.WrapH(proxy.NewSingle(resolve("notification"))))
+		protected.Any("/chat/*path", gin.WrapH(proxy.NewSingle(resolve("chat"))))
 	}
 
 	return &http.Server{Addr: ":" + cfg.Port, Handler: r}
@@ -138,13 +140,14 @@ func staticResolver(cfg *config.Config) func(string) string {
 		"search":       cfg.SearchServiceURL,
 		"video":        cfg.VideoServiceURL,
 		"notification": cfg.NotificationServiceURL,
+		"chat":         cfg.ChatServiceURL,
 	}
 	return func(name string) string { return m[name] }
 }
 
 func consulResolver(cfg *config.Config, r *consulpkg.Resolver) func(string) string {
 	static := staticResolver(cfg)
-	names := []string{"user", "feed", "search", "video", "notification"}
+	names := []string{"user", "feed", "search", "video", "notification", "chat"}
 	m := make(map[string]string, len(names))
 	for _, name := range names {
 		url, err := r.Resolve(name)

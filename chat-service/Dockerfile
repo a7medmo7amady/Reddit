@@ -20,6 +20,6 @@ COPY --from=builder /app/chat-service ./chat-service
 
 USER appuser
 
-EXPOSE 8081
+EXPOSE 8085
 
 CMD ["./chat-service"]

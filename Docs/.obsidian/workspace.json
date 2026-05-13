@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "ADRs/adr-013-chat-technology-stack.md",
+                "file": "ADRs/adr-007-service-technology-stack.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "adr-013-chat-technology-stack"
+              "title": "adr-007-service-technology-stack"
             }
           }
         ],
@@ -200,7 +200,9 @@
   },
   "active": "04165cb9b06c9308",
   "lastOpenFiles": [
+    "ADRs/adr-013-chat-technology-stack.md",
     "ADRs/adr-002-database-strategy.md",
+    "ADRs/adr-001-microservices-architecture.md",
     "ADRs/adr-003-authentication-and-authorization.md",
     "ADRs/adr-004-inter-service-communication.md",
     "ADRs/adr-005-api-gateway.md",
@@ -208,11 +210,9 @@
     "ADRs/adr-007-service-technology-stack.md",
     "ADRs/adr-012-real-time-communication.md",
     "ADRs/adr-008-caching-strategy.md",
-    "ADRs/adr-013-chat-technology-stack.md",
     "ADRs/adr-011-resilience-patterns.md",
     "ADRs/adr-010-centralized-logging-and-monitoring.md",
     "ADRs/adr-009-search-engine.md",
-    "ADRs/adr-001-microservices-architecture.md",
     "Diagrams/image.png",
     "Diagrams/OverView.png",
     "Diagrams/Guide.md",

@@ -33,6 +33,8 @@ public class SecurityConfig {
                         // Public auth endpoints
                         .requestMatchers(HttpMethod.POST, "/auth/signup", "/auth/login", "/auth/refresh", "/auth/logout").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        // Internal service-to-service endpoints (chat-service → user-service, not exposed via API Gateway)
+                        .requestMatchers("/internal/**").permitAll()
                         // Public read endpoints — /me must come BEFORE {username} so the template doesn't swallow it
                         .requestMatchers(HttpMethod.GET, "/test").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users/me").authenticated()

@@ -17,6 +17,7 @@ type Config struct {
 	SearchServiceURL       string
 	VideoServiceURL        string
 	NotificationServiceURL string
+	ChatServiceURL         string
 
 	UserGRPCAddr         string
 	FeedGRPCAddr         string
@@ -40,6 +41,7 @@ func Load() *Config {
 		SearchServiceURL:       getEnv("SEARCH_SERVICE_URL", "http://search-service:8082"),
 		VideoServiceURL:        getEnv("VIDEO_SERVICE_URL", "http://video-service:8083"),
 		NotificationServiceURL: getEnv("NOTIFICATION_SERVICE_URL", "http://notification-service:8084"),
+		ChatServiceURL:         getEnv("CHAT_SERVICE_URL", "http://chat-service:8085"),
 
 		UserGRPCAddr:         getEnv("USER_GRPC_ADDR", "user-service:50051"),
 		FeedGRPCAddr:         getEnv("FEED_GRPC_ADDR", "feed-service:50052"),

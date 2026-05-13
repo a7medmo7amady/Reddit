@@ -103,7 +103,7 @@ func (h *ChatHandler) DeleteMessage(c *gin.Context) {
 	userID := c.GetString("userID")
 	messageID := c.Param("messageId")
 
-	role := strings.ToUpper(strings.TrimSpace(c.GetHeader("X-User-Role")))
+	role := strings.ToUpper(strings.TrimSpace(c.GetString("userRole")))
 	isModerator := role == "MODERATOR" || role == "ADMIN"
 
 	if err := h.chat.DeleteMessage(c.Request.Context(), userID, messageID, isModerator); err != nil {

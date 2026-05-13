@@ -13,6 +13,7 @@ type Config struct {
 	RedisAddr      string
 	InstanceID     string
 	MaxWSConns     int
+	KafkaBrokers   string
 }
 
 func Load() Config {
@@ -24,6 +25,7 @@ func Load() Config {
 		RedisAddr:      os.Getenv("REDIS_ADDR"),
 		InstanceID:     getEnv("INSTANCE_ID", ""),
 		MaxWSConns:     getEnvInt("MAX_WS_CONNS", 10000),
+		KafkaBrokers:   os.Getenv("KAFKA_BROKERS"),
 	}
 }
 

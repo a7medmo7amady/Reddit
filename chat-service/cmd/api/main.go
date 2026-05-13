@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,7 +37,19 @@ func main() {
 	database := mongoClient.Database(cfg.MongoDatabase)
 
 	userClient := userclient.New(cfg.UserServiceURL)
-	producer := events.NewLogProducer()
+
+	// Kafka producer (falls back to LogProducer if KAFKA_BROKERS is not set).
+	var producer events.Producer
+	if cfg.KafkaBrokers != "" {
+		brokers := strings.Split(cfg.KafkaBrokers, ",")
+		kafkaProducer := events.NewKafkaProducer(brokers)
+		defer kafkaProducer.Close()
+		producer = kafkaProducer
+		log.Printf("kafka producer connected to %s", cfg.KafkaBrokers)
+	} else {
+		producer = events.NewLogProducer()
+		log.Println("kafka not configured, using log producer")
+	}
 
 	var fanout realtime.Fanout
 	var offline realtime.OfflineQueue
