@@ -1,3 +1,5 @@
+import { buildApiUrl } from "./config";
+
 const TOKEN_COOKIE = "access_token";
 const TOKEN_TTL_MS = 15 * 60 * 1000; // 15 minutes — matches JWT expiry
 
@@ -23,8 +25,6 @@ export function clearToken(): void {
   document.cookie = `${TOKEN_COOKIE}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
-
 export async function fetchWithAuth(
   path: string,
   options: RequestInit = {}
@@ -36,7 +36,7 @@ export async function fetchWithAuth(
   }
   headers.set("Content-Type", "application/json");
 
-  return fetch(`${API_URL}${path}`, {
+  return fetch(buildApiUrl(path), {
     ...options,
     credentials: "include",
     headers,
@@ -44,7 +44,7 @@ export async function fetchWithAuth(
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_URL}/auth/logout`, {
+  await fetch(buildApiUrl("/auth/logout"), {
     method: "POST",
     credentials: "include",
   }).catch(() => {});

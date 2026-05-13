@@ -17,13 +17,20 @@ func SetJWTSecret(secret string) {
 
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if !strings.HasPrefix(header, "Bearer ") {
+		tokenStr := bearerToken(c.GetHeader("Authorization"))
+		if tokenStr == "" {
+			tokenStr = c.Query("access_token")
+		}
+		if tokenStr == "" {
+			if cookie, err := c.Cookie("access_token"); err == nil {
+				tokenStr = cookie
+			}
+		}
+		if tokenStr == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or malformed token"})
 			return
 		}
 
-		tokenStr := strings.TrimPrefix(header, "Bearer ")
 		claims, err := jwtpkg.Verify(tokenStr, jwtSecret)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
@@ -34,4 +41,11 @@ func Auth() gin.HandlerFunc {
 		c.Request.Header.Set("X-Role", claims.Role)
 		c.Next()
 	}
+}
+
+func bearerToken(header string) string {
+	if !strings.HasPrefix(header, "Bearer ") {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(header, "Bearer "))
 }

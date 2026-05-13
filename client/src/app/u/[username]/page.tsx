@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { fetchWithAuth, logout } from "@/lib/auth";
+import { buildApiUrl } from "@/lib/config";
 import { getMyUsername } from "@/lib/jwt";
 import styles from "./page.module.css";
 
@@ -53,9 +54,7 @@ export default function UserProfilePage() {
   };
 
   useEffect(() => {
-    fetch(
-      `${process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088"}/users/${username}`
-    )
+    fetch(buildApiUrl(`/users/${username}`))
       .then((r) => {
         if (r.status === 404) { setNotFound(true); return null; }
         return r.json();
