@@ -9,6 +9,7 @@ const PostModel = require('../models/post.model');
 const kafkaService = require('../services/kafka.service');
 const storageService = require('../services/storage.service');
 const imageService = require('../services/image.service');
+const banService = require('../services/ban.service');
 const { Upload } = require('@aws-sdk/lib-storage');
 
 // ── Multer config ─────────────────────────────────────────────────────────────
@@ -65,6 +66,10 @@ router.post('/posts', uploadFields, async (req, res) => {
 
         const postId = uuidv4();
         const authorId = req.headers['x-user-id'] || '';
+
+        if (authorId && await banService.isBanned(authorId, community)) {
+            return res.status(403).json({ error: 'You are banned from this community.' });
+        }
 
         const postData = {
             title,

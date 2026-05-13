@@ -74,6 +74,34 @@ func (c *PostCache) GetByCommunities(ctx context.Context, communities []string, 
 	return decodePosts(vals), nil
 }
 
+// GetByID scans all community keys to find a post by its string ID.
+func (c *PostCache) GetByID(ctx context.Context, id string) (model.Post, error) {
+	var cursor uint64
+	for {
+		keys, next, err := c.rdb.Scan(ctx, cursor, "posts:community:*", 100).Result()
+		if err != nil {
+			return model.Post{}, err
+		}
+		for _, key := range keys {
+			vals, err := c.rdb.ZRevRange(ctx, key, 0, -1).Result()
+			if err != nil {
+				continue
+			}
+			for _, v := range vals {
+				var p model.Post
+				if json.Unmarshal([]byte(v), &p) == nil && p.StringID == id {
+					return p, nil
+				}
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			break
+		}
+	}
+	return model.Post{}, redis.Nil
+}
+
 func decodePosts(vals []string) []model.Post {
 	posts := make([]model.Post, 0, len(vals))
 	for _, v := range vals {

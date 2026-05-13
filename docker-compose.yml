@@ -231,7 +231,7 @@ services:
       - PORT=8084
       - GRPC_PORT=50055
       - KAFKA_BROKERS=kafka:9092
-      - REDIS_URL=redis:6379
+      - REDIS_URL=redis://redis:6379
       - MONGO_URI=mongodb://mongo:27017/reddit_clone
     depends_on:
       - kafka

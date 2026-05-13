@@ -133,7 +133,6 @@ export default function UserProfilePage() {
         )}
       </nav>
 
-      {/* ── banner ── */}
       <div className={styles.banner}>
         {profile.banner ? (
           <Image

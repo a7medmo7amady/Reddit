@@ -21,8 +21,6 @@ export default function Home() {
   const [isAuthed, setIsAuthed] = useState(false);
 
   const isSignup = mode === "signup";
-
-  // Restore auth state from cookie, or pick up the token the OAuth redirect drops in the URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get("accessToken");
