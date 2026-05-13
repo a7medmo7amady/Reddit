@@ -81,6 +81,10 @@ export default function ChatPage() {
   const [typingUsers, setTypingUsers] = useState<Record<string, TypingUser[]>>(
     {}
   );
+  const [currentUser, setCurrentUser] = useState<{
+    id: string | null;
+    username: string | null;
+  }>({ id: null, username: null });
 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,8 +93,8 @@ export default function ChatPage() {
   const realtimeHandlerRef = useRef<(payload: RealtimeEvent) => void>(() => {});
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const myUserId = getMyUserId();
-  const myUsername = getMyUsername();
+  const myUserId = currentUser.id;
+  const myUsername = currentUser.username;
   const activeInboxItem = inbox.find(
     (item) => item.conversationId === activeConversationId
   );
@@ -112,6 +116,13 @@ export default function ChatPage() {
   }, [activeConversationId, myUserId, typingUsers]);
 
   useEffect(() => {
+    queueMicrotask(() => {
+      setCurrentUser({
+        id: getMyUserId(),
+        username: getMyUsername(),
+      });
+    });
+
     if (!getToken()) {
       window.location.href = "/";
       return;
@@ -246,10 +257,14 @@ export default function ChatPage() {
     }
   }
 
-  function refreshInbox() {
-    getInbox()
-      .then((items) => setInbox(items))
-      .catch(() => {});
+  async function refreshInbox() {
+    try {
+      const items = await getInbox();
+      setInbox(items);
+      return items;
+    } catch {
+      return [];
+    }
   }
 
   async function handleCreateConversation(event: FormEvent<HTMLFormElement>) {
