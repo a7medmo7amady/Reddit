@@ -8,6 +8,7 @@
     "variable": [
         { "key": "host", "value": "localhost:8083", "type": "string" },
         { "key": "postId", "value": "", "type": "string" },
+        { "key": "commentId", "value": "", "type": "string" },
         { "key": "filename", "value": "master.m3u8", "type": "string" }
     ],
     "item": [
@@ -139,6 +140,102 @@
                     "path": ["posts", "{{postId}}"]
                 }
             }
+        },
+        {
+            "name": "Post Interactions",
+            "item": [
+                {
+                    "name": "Vote on Post",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"direction\": 1\n}",
+                            "options": { "raw": { "language": "json" }}
+                        },
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/vote",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "vote"]
+                        },
+                        "description": "direction: 1 (up), -1 (down), 0 (none)"
+                    }
+                },
+                {
+                    "name": "Create Comment",
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "exec": [
+                                "var r = pm.response.json();",
+                                "if (r.id) pm.collectionVariables.set('commentId', r.id);",
+                                "pm.test('Comment Created', () => pm.expect(pm.response.code).to.equal(201));"
+                            ],
+                            "type": "text/javascript"
+                        }
+                    }],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "x-user-id", "value": "user_abc", "type": "text" },
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"body\": \"This is a top-level comment!\",\n  \"parentId\": null\n}",
+                            "options": { "raw": { "language": "json" }}
+                        },
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/comments",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "comments"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Post Comments",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/comments?limit=10&page=1",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "comments"],
+                            "query": [
+                                { "key": "limit", "value": "10" },
+                                { "key": "page", "value": "1" },
+                                { "key": "parentId", "value": "", "disabled": true, "description": "Optional: Fetch specific reply thread" }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Vote on Comment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"direction\": 1\n}",
+                            "options": { "raw": { "language": "json" }}
+                        },
+                        "url": {
+                            "raw": "http://{{host}}/comments/{{commentId}}/vote",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["comments", "{{commentId}}", "vote"]
+                        }
+                    }
+                }
+            ]
         },
         {
             "name": "Post Assets",
