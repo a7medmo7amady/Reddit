@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const postRoutes    = require('./routes/posts');
+const commentRoutes = require('./routes/comments');
 const assetRoutes   = require('./routes/assets');
 const kafkaService  = require('./services/kafka.service');
 const transcoderService = require('./services/transcoder.service');
@@ -15,6 +16,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use('/', postRoutes);
+app.use('/', commentRoutes);
 app.use('/', assetRoutes);
 app.get('/health', (req, res) => res.json({ status: 'OK', service: 'upload-service' }));
 

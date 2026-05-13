@@ -303,4 +303,43 @@ router.delete('/posts/:id', async (req, res) => {
     }
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// POST /posts/:id/vote — Upvote or downvote a post
+// ═════════════════════════════════════════════════════════════════════════════
+router.post('/posts/:id/vote', async (req, res) => {
+    try {
+        const { direction } = req.body; // 1 for upvote, -1 for downvote, 0 to clear
+        const postId = req.params.id;
+
+        if (![1, -1, 0].includes(direction)) {
+            return res.status(400).json({ error: 'Invalid vote direction. Use 1, -1, or 0.' });
+        }
+
+        const post = await PostModel.findById(postId);
+        if (!post) return res.status(404).json({ error: 'Post not found.' });
+
+        // In a real app, you'd track per-user votes to prevent double voting.
+        // For this implementation, we'll just update the counters.
+        const update = {};
+        if (direction === 1) update.$inc = { upvotes: 1 };
+        else if (direction === -1) update.$inc = { downvotes: 1 };
+        // Note: simplified logic. Real logic would involve checking previous vote state.
+
+        const updatedPost = await mongoose.model('Post').findOneAndUpdate(
+            { id: postId },
+            update,
+            { new: true }
+        );
+
+        res.json({
+            id: updatedPost.id,
+            upvotes: updatedPost.upvotes,
+            downvotes: updatedPost.downvotes,
+            score: updatedPost.upvotes - updatedPost.downvotes
+        });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

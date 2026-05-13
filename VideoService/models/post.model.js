@@ -64,6 +64,11 @@ const postSchema = new mongoose.Schema({
     deletedAt:   { type: Date, default: null },
     purged:      { type: Boolean, default: false },  // true once S3 files are cleaned up
 
+    // Interaction metrics
+    upvotes:      { type: Number, default: 0 },
+    downvotes:    { type: Number, default: 0 },
+    commentCount: { type: Number, default: 0 },
+
     createdAt:   { type: Date, default: Date.now },
     updatedAt:   { type: Date, default: Date.now }
 });
