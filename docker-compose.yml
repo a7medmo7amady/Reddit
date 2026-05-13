@@ -1,5 +1,17 @@
 services:
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
   consul:
     image: hashicorp/consul:1.19
     command: agent -dev -client=0.0.0.0
@@ -34,13 +46,14 @@ services:
 
   api-gateway:
     build: ./api-gateway
-    expose:
-      - "8088"   # HTTP / REST
-      - "9090"   # gRPC (h2c)
+    ports:
+      - "8088:8088"   # HTTP / REST
+      - "9090:9090"   # gRPC (h2c)
     environment:
       PORT: "8088"
       GRPC_PORT: "9090"
       JWT_SECRET: ${JWT_SECRET}
+      REDIS_ADDR: "redis:6379"
       CONSUL_ADDR: "consul:8500"
       # Static fallbacks (used when Consul lookup fails)
       USER_SERVICE_URL: http://user-service:8080
@@ -55,6 +68,8 @@ services:
       VIDEO_GRPC_ADDR: video-service:50054
       NOTIFICATION_GRPC_ADDR: notification-service:50055
     depends_on:
+      redis:
+        condition: service_healthy
       consul:
         condition: service_healthy
       user-service:
@@ -88,11 +103,16 @@ services:
     restart: unless-stopped
 
   user-service:
-    build: ./User
+    build: ./user-service
     ports:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reddit_clone
+      MONGO_HOST: mongo
+      MONGO_PORT: "27017"
+      MONGO_DB: reddit_clone
     depends_on:
       - postgres
       - mongo
@@ -129,6 +149,33 @@ services:
       - zookeeper
     restart: unless-stopped
 
+  search-service:
+    build:
+      context: .
+      dockerfile: ./search-service/Dockerfile
+    ports:
+      - "8082:8082"
+      - "50053:50053"
+    environment:
+      - PORT=8082
+      - GRPC_PORT=50053
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
   structurizr:
     image: structurizr/structurizr
     command: local
@@ -138,7 +185,63 @@ services:
       - ./Docs/Architecture:/usr/local/structurizr
     restart: unless-stopped
 
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # UI Console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  video-service:
+    build: ./VideoService
+    ports:
+      - "8083:8083"
+    environment:
+      - PORT=8083
+      - KAFKA_BROKERS=kafka:9092
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+      - S3_STAGING_BUCKET=staging
+      - S3_SERVING_BUCKET=serving
+    depends_on:
+      kafka:
+        condition: service_started
+      minio:
+        condition: service_healthy
+  notification-service:
+    build:
+      context: .
+      dockerfile: ./notification-service/Dockerfile
+    ports:
+      - "8084:8084"
+      - "50055:50055"
+    environment:
+      - PORT=8084
+      - GRPC_PORT=50055
+      - KAFKA_BROKERS=kafka:9092
+      - REDIS_URL=redis:6379
+      - MONGO_URI=mongodb://mongo:27017/reddit_clone
+    depends_on:
+      - kafka
+      - mongo
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   mongo_data:
   kafka_data:
+  redis_data:
+  minio_data:
+  elasticsearch_data:

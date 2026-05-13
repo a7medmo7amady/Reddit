@@ -3,24 +3,21 @@ package config
 import "os"
 
 type Config struct {
-	// HTTP gateway
 	Port      string
 	JWTSecret string
 
-	// gRPC gateway
 	GRPCPort string
 
-	// Consul (optional — leave empty to use static URLs below)
-	ConsulAddr string
+	RedisAddr     string
+	ConsulAddr    string
+	AllowedOrigin string
 
-	// Static service URLs (used when Consul is not configured)
 	UserServiceURL         string
 	FeedServiceURL         string
 	SearchServiceURL       string
 	VideoServiceURL        string
 	NotificationServiceURL string
 
-	// gRPC backend addresses (host:port, no scheme)
 	UserGRPCAddr         string
 	FeedGRPCAddr         string
 	SearchGRPCAddr       string
@@ -34,7 +31,9 @@ func Load() *Config {
 		JWTSecret: getEnv("JWT_SECRET", "changeme"),
 		GRPCPort:  getEnv("GRPC_PORT", "9090"),
 
-		ConsulAddr: getEnv("CONSUL_ADDR", ""),
+		RedisAddr:     getEnv("REDIS_ADDR", ""),
+		ConsulAddr:    getEnv("CONSUL_ADDR", ""),
+		AllowedOrigin: getEnv("ALLOWED_ORIGIN", "http://localhost:3000"),
 
 		UserServiceURL:         getEnv("USER_SERVICE_URL", "http://user-service:8080"),
 		FeedServiceURL:         getEnv("FEED_SERVICE_URL", "http://feed-service:8081"),
