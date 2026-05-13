@@ -6,9 +6,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// BanCache tracks community-level bans.
-// Key schema:  ban:{userId}:{community}  →  "1"  (exists = banned)
-// Bans have no TTL — they persist until an UNBANNED event removes them.
 type BanCache struct {
 	rdb *redis.Client
 }

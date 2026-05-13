@@ -74,7 +74,6 @@ func (c *PostCache) GetByCommunities(ctx context.Context, communities []string, 
 	return decodePosts(vals), nil
 }
 
-// GetByID scans all community keys to find a post by its string ID.
 func (c *PostCache) GetByID(ctx context.Context, id string) (model.Post, error) {
 	var cursor uint64
 	for {

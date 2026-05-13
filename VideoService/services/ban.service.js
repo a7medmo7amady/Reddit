@@ -13,7 +13,6 @@ function getClient() {
     return client;
 }
 
-// Mirrors feed-service ban.go key schema: ban:{userId}:{community}
 async function isBanned(userId, community) {
     if (!userId || !community) return false;
     try {
