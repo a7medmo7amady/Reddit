@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package search;
+
+option go_package = "reddit-clone/proto/search";
+
+service SearchService {
+  rpc Search (SearchRequest) returns (SearchResponse);
+  rpc IndexPost (IndexPostRequest) returns (IndexPostResponse);
+  rpc IndexCommunity (IndexCommunityRequest) returns (IndexCommunityResponse);
+  rpc IndexUser (IndexUserRequest) returns (IndexUserResponse);
+  rpc IndexComment (IndexCommentRequest) returns (IndexCommentResponse);
+}
+
+message SearchRequest {
+  string query = 1;
+  string type = 2; // posts, communities, users
+  int32 limit = 3;
+  int32 page = 4;
+  map<string, string> filters = 5;
+}
+
+message SearchResponse {
+  repeated SearchResult results = 1;
+  int64 total = 2;
+}
+
+message SearchResult {
+  string id = 1;
+  string type = 2;
+  string title = 3;
+  string content = 4;
+  string author = 5;
+  string community = 6;
+  string thumbnail = 7;
+}
+
+message IndexPostRequest {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  string author_id = 4;
+  string community_id = 5;
+}
+
+message IndexPostResponse {
+  bool success = 1;
+}
+
+message IndexCommunityRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+}
+
+message IndexCommunityResponse {
+  bool success = 1;
+}
+
+message IndexUserRequest {
+  string id = 1;
+  string username = 2;
+  string bio = 3;
+}
+
+message IndexUserResponse {
+  bool success = 1;
+}
+
+message IndexCommentRequest {
+  string id = 1;
+  string content = 2;
+  string author_id = 3;
+  string post_id = 4;
+}
+
+message IndexCommentResponse {
+  bool success = 1;
+}
