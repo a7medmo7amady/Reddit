@@ -1,0 +1,332 @@
+{
+    "info": {
+        "_postman_id": "c3118e32-366c-4fc3-8c7b-cd40b881e612",
+        "name": "Reddit Upload Service — Mixed Content",
+        "description": "Unified Upload Service supporting mixed content posts (Text, Images, Link, Video).",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+        { "key": "host", "value": "localhost:8083", "type": "string" },
+        { "key": "postId", "value": "", "type": "string" },
+        { "key": "commentId", "value": "", "type": "string" },
+        { "key": "filename", "value": "master.m3u8", "type": "string" }
+    ],
+    "item": [
+        {
+            "name": "00. Health Check",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/health",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["health"]
+                }
+            }
+        },
+        {
+            "name": "01. Create Post",
+            "event": [{
+                "listen": "test",
+                "script": {
+                    "exec": [
+                        "var r = pm.response.json();",
+                        "var id = r.id || r.postId;",
+                        "if (id) pm.collectionVariables.set('postId', id);",
+                        "pm.test('Post Created', () => pm.expect(pm.response.code).to.be.oneOf([201, 202]));"
+                    ],
+                    "type": "text/javascript"
+                }
+            }],
+            "request": {
+                "method": "POST",
+                "header": [
+                    { "key": "x-user-id", "value": "user_abc", "type": "text" }
+                ],
+                "body": {
+                    "mode": "formdata",
+                    "formdata": [
+                        { "key": "title", "value": "A New Unified Post", "type": "text" },
+                        { "key": "community", "value": "r/all", "type": "text" },
+                        { "key": "body", "value": "This post can have any combination of text, images, or video.", "type": "text" },
+                        { "key": "url", "value": "https://google.com", "type": "text" },
+                        { "key": "images", "type": "file", "src": [], "description": "Optional: Select 1-5 images" },
+                        { "key": "video", "type": "file", "src": [], "description": "Optional: Select 1 video" }
+                    ]
+                },
+                "url": {
+                    "raw": "http://{{host}}/posts",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts"]
+                },
+                "description": "Create a post with any combination of content. All fields (body, url, images, video) are optional."
+            }
+        },
+        {
+            "name": "List All Posts",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/posts?community=r/all&limit=10&page=1",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts"],
+                    "query": [
+                        { "key": "community", "value": "r/all", "description": "Optional: Filter by community" },
+                        { "key": "limit", "value": "10", "description": "Optional: Number of posts per page" },
+                        { "key": "page", "value": "1", "description": "Optional: Page number" }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "02. Check Video Status (Poll)",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}/status",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}", "status"]
+                }
+            }
+        },
+        {
+            "name": "03. Get Final Post",
+            "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}"]
+                }
+            }
+        },
+        {
+            "name": "04. Edit Post (Metadata only)",
+            "request": {
+                "method": "PATCH",
+                "header": [
+                    { "key": "Content-Type", "value": "application/json", "type": "text" }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"title\": \"Updated Mixed Post Title\",\n  \"body\": \"This text is now updated!\"\n}",
+                    "options": { "raw": { "language": "json" }}
+                },
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}"]
+                }
+            }
+        },
+        {
+            "name": "05. Delete Post",
+            "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                    "raw": "http://{{host}}/posts/{{postId}}",
+                    "protocol": "http",
+                    "host": ["{{host}}"],
+                    "path": ["posts", "{{postId}}"]
+                }
+            }
+        },
+        {
+            "name": "Post Interactions",
+            "item": [
+                {
+                    "name": "Vote on Post",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"direction\": 1\n}",
+                            "options": { "raw": { "language": "json" }}
+                        },
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/vote",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "vote"]
+                        },
+                        "description": "direction: 1 (up), -1 (down), 0 (none)"
+                    }
+                },
+                {
+                    "name": "Create Comment",
+                    "event": [{
+                        "listen": "test",
+                        "script": {
+                            "exec": [
+                                "var r = pm.response.json();",
+                                "if (r.id) pm.collectionVariables.set('commentId', r.id);",
+                                "pm.test('Comment Created', () => pm.expect(pm.response.code).to.equal(201));"
+                            ],
+                            "type": "text/javascript"
+                        }
+                    }],
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "x-user-id", "value": "user_abc", "type": "text" },
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"body\": \"This is a top-level comment!\",\n  \"parentId\": null\n}",
+                            "options": { "raw": { "language": "json" }}
+                        },
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/comments",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "comments"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Post Comments",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/comments?limit=10&page=1",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "comments"],
+                            "query": [
+                                { "key": "limit", "value": "10" },
+                                { "key": "page", "value": "1" },
+                                { "key": "parentId", "value": "", "disabled": true, "description": "Optional: Fetch specific reply thread" }
+                            ]
+                        }
+                    }
+                },
+                {
+                    "name": "Vote on Comment",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            { "key": "Content-Type", "value": "application/json", "type": "text" }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"direction\": 1\n}",
+                            "options": { "raw": { "language": "json" }}
+                        },
+                        "url": {
+                            "raw": "http://{{host}}/comments/{{commentId}}/vote",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["comments", "{{commentId}}", "vote"]
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Post Assets",
+            "item": [
+                {
+                    "name": "Get HLS Stream (Master)",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/video/{{postId}}/master.m3u8",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "video", "{{postId}}", "master.m3u8"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Specific Asset File",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/video/{{postId}}/{{filename}}",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "video", "{{postId}}", "{{filename}}"]
+                        },
+                        "description": "Used to fetch .ts segments or resolution-specific .m3u8 files."
+                    }
+                },
+                {
+                    "name": "Get Video Thumbnail",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/thumbs/{{postId}}.jpg",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "thumbs", "{{postId}}.jpg"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Preview GIF",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/previews/{{postId}}.gif",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "previews", "{{postId}}.gif"]
+                        }
+                    }
+                },
+                {
+                    "name": "Get Processed Image Variant",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/assets/images/{{postId}}/{{filename}}",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["assets", "images", "{{postId}}", "{{filename}}"]
+                        },
+                        "description": "Filename should be in format: imageId-variant.webp (e.g. uuid-thumbnail.webp)"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "Post Management",
+            "item": [
+                {
+                    "name": "Get Edit History",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://{{host}}/posts/{{postId}}/history",
+                            "protocol": "http",
+                            "host": ["{{host}}"],
+                            "path": ["posts", "{{postId}}", "history"]
+                        },
+                        "description": "Returns full versioned history for text/link posts."
+                    }
+                }
+            ]
+        }
+    ]
+}
