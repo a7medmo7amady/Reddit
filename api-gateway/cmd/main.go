@@ -25,6 +25,7 @@ import (
 func main() {
 	cfg := config.Load()
 	middleware.SetJWTSecret(cfg.JWTSecret)
+	middleware.SetAllowedOrigin(cfg.AllowedOrigin)
 
 	// ── Redis rate limiter ────────────────────────────────────────────────────
 	if cfg.RedisAddr != "" {
@@ -90,17 +91,16 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		"video":        resolve("video"),
 		"notification": resolve("notification"),
 	}))
-
-	// Public
+	
 	r.Any("/auth/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/login/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
+	r.Any("/users/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 
-	// Protected
+	
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 	{
-		protected.Any("/users/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.Any("/posts/*path", gin.WrapH(proxy.NewSingle(resolve("feed"))))
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))

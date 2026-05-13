@@ -72,8 +72,10 @@ public class AuthService {
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
     }
 
-    public User login(String email, String password) {
-        User user = userRepository.findByEmail(email)
+    public User login(String identifier, String password) {
+        User user = (identifier.contains("@")
+                ? userRepository.findByEmail(identifier)
+                : userRepository.findByUsername(identifier))
                 .orElseThrow(() -> new UserNotFoundException("Invalid email or password"));
 
         if (user.isBanned()) {

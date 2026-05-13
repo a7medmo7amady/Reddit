@@ -3,7 +3,9 @@
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import styles from "./page.module.css";
-import { saveToken, getToken, logout, fetchWithAuth } from "@/lib/auth";
+import Link from "next/link";
+import { saveToken, getToken, logout } from "@/lib/auth";
+import { getMyUsername } from "@/lib/jwt";
 
 type AuthMode = "login" | "signup";
 
@@ -79,7 +81,7 @@ export default function Home() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ identifier: email, password }),
         });
 
         const data = await res.json().catch(() => ({}));
@@ -103,6 +105,7 @@ export default function Home() {
   };
 
   if (isAuthed) {
+    const username = getMyUsername();
     return (
       <main className={styles.page}>
         <header className={styles.header}>
@@ -120,7 +123,14 @@ export default function Home() {
         <section className={styles.authShell}>
           <div className={styles.authCard}>
             <h1>You&apos;re in!</h1>
-            <p>Successfully signed in.</p>
+            {username && (
+              <Link
+                href={`/u/${username}`}
+                style={{ display: "block", marginBottom: 12, color: "#ff4500" }}
+              >
+                View your profile →
+              </Link>
+            )}
             <button className={styles.submitButton} onClick={handleLogout}>
               Log Out
             </button>
