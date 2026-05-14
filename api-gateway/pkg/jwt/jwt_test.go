@@ -37,6 +37,23 @@ func TestVerify_ValidToken(t *testing.T) {
 	}
 }
 
+func TestVerify_UsesSubjectAsUserID(t *testing.T) {
+	claims := jwt.MapClaims{
+		"sub":  "42",
+		"role": "USER",
+		"exp":  time.Now().Add(time.Hour).Unix(),
+	}
+	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
+
+	verified, err := jwtpkg.Verify(token, secret)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if verified.UserID != "42" {
+		t.Errorf("UserID: want 42, got %s", verified.UserID)
+	}
+}
+
 func TestVerify_ExpiredToken(t *testing.T) {
 	token := makeToken("user-123", "member", -time.Minute)
 	_, err := jwtpkg.Verify(token, secret)

@@ -6,11 +6,9 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { saveToken, getToken, logout } from "@/lib/auth";
 import { getMyUsername } from "@/lib/jwt";
+import { buildApiUrl } from "@/lib/config";
 
 type AuthMode = "login" | "signup";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
 export default function Home() {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -29,7 +27,7 @@ export default function Home() {
 
     if (urlToken) {
       saveToken(urlToken);
-      setIsAuthed(true);
+      queueMicrotask(() => setIsAuthed(true));
       const clean = new URL(window.location.href);
       clean.searchParams.delete("accessToken");
       window.history.replaceState({}, "", clean.toString());
@@ -37,7 +35,7 @@ export default function Home() {
     }
 
     if (getToken()) {
-      setIsAuthed(true);
+      queueMicrotask(() => setIsAuthed(true));
     }
   }, []);
 
@@ -58,7 +56,7 @@ export default function Home() {
           return;
         }
 
-        const res = await fetch(`${API_URL}/auth/signup`, {
+        const res = await fetch(buildApiUrl("/auth/signup"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -77,7 +75,7 @@ export default function Home() {
         saveToken(data.accessToken);
         setIsAuthed(true);
       } else {
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const res = await fetch(buildApiUrl("/auth/login"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -131,6 +129,12 @@ export default function Home() {
                 View your profile →
               </Link>
             )}
+            <Link
+              href="/chat"
+              style={{ display: "block", marginBottom: 12, color: "#ff4500" }}
+            >
+              Open chat →
+            </Link>
             <button className={styles.submitButton} onClick={handleLogout}>
               Log Out
             </button>
@@ -166,7 +170,7 @@ export default function Home() {
           </p>
 
           <div className={styles.oauthStack}>
-            <a href={`${API_URL}/oauth2/authorization/google`}>
+            <a href={buildApiUrl("/oauth2/authorization/google")}>
               <Image
                 className={styles.googleLogo}
                 src="/google-g-2015.svg"

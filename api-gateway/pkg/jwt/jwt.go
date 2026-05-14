@@ -26,5 +26,8 @@ func Verify(tokenString, secret string) (*Claims, error) {
 	if !token.Valid {
 		return nil, errors.New("invalid token")
 	}
+	if claims.UserID == "" {
+		claims.UserID = claims.Subject
+	}
 	return claims, nil
 }

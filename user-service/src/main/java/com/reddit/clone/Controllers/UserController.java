@@ -3,6 +3,7 @@ package com.reddit.clone.Controllers;
 import com.reddit.clone.dto.PrivateProfileResponse;
 import com.reddit.clone.dto.PublicProfileResponse;
 import com.reddit.clone.dto.UpdateProfileRequest;
+import com.reddit.clone.exception.UserNotFoundException;
 import com.reddit.clone.model.User;
 import com.reddit.clone.service.UserService;
 import jakarta.validation.Valid;
@@ -20,6 +21,15 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    @GetMapping("/id/{userId}")
+    public ResponseEntity<PublicProfileResponse> getPublicProfileById(@PathVariable String userId) {
+        try {
+            return ResponseEntity.ok(userService.getPublicProfileById(Long.parseLong(userId.trim())));
+        } catch (NumberFormatException e) {
+            throw new UserNotFoundException("User not found with id: " + userId);
+        }
     }
 
     @GetMapping("/{username}")
