@@ -65,6 +65,31 @@ func TestAuth_ValidToken(t *testing.T) {
 	}
 }
 
+func TestAuth_QueryToken(t *testing.T) {
+	token := makeToken("user-42", "member", time.Hour)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/protected?access_token="+token, nil)
+
+	authRouter().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d — body: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestAuth_CookieToken(t *testing.T) {
+	token := makeToken("user-42", "member", time.Hour)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.AddCookie(&http.Cookie{Name: "access_token", Value: token})
+
+	authRouter().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d — body: %s", w.Code, w.Body.String())
+	}
+}
+
 func TestAuth_MissingHeader(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)

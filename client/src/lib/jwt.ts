@@ -23,3 +23,7 @@ export function decodeToken(): TokenPayload | null {
 export function getMyUsername(): string | null {
   return decodeToken()?.username ?? null;
 }
+
+export function getMyUserId(): string | null {
+  return decodeToken()?.sub ?? null;
+}

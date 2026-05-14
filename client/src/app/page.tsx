@@ -7,6 +7,7 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { saveToken, getToken, logout } from "@/lib/auth";
 import { getMyUsername } from "@/lib/jwt";
+import { buildApiUrl } from "@/lib/config";
 import AuthPopup from "@/components/AuthPopup";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
@@ -83,11 +84,15 @@ export default function Home() {
     const urlToken = params.get("accessToken");
     if (urlToken) {
       saveToken(urlToken);
-      setIsAuthed(true);
+      queueMicrotask(() => setIsAuthed(true));
       const clean = new URL(window.location.href);
       clean.searchParams.delete("accessToken");
       window.history.replaceState({}, "", clean.toString());
       return;
+    }
+
+    if (getToken()) {
+      queueMicrotask(() => setIsAuthed(true));
     }
     if (getToken()) setIsAuthed(true);
   }, []);
@@ -108,6 +113,37 @@ export default function Home() {
           setIsLoading(false);
           return;
         }
+
+        const res = await fetch(buildApiUrl("/auth/signup"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            username: formData.get("username"),
+            email,
+            password,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.message ?? "Signup failed. Please try again.");
+          return;
+        }
+        saveToken(data.accessToken);
+        setIsAuthed(true);
+      } else {
+        const res = await fetch(buildApiUrl("/auth/login"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ identifier: email, password }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.message ?? "Invalid email or password.");
+          return;
         const res = await fetch(`${API_URL}/posts/feed?communities=${followed}`, token ? { headers } : undefined);
         if (res.ok) {
           const data = await res.json();
@@ -197,6 +233,47 @@ export default function Home() {
     setActiveTab(tab);
   };
 
+  if (isAuthed) {
+    const username = getMyUsername();
+    return (
+      <main className={styles.page}>
+        <header className={styles.header}>
+          <div className={styles.brand}>
+            <Image
+              className={styles.redditLogo}
+              src="/reddit-1.svg"
+              alt="Reddit"
+              width={124}
+              height={40}
+              priority
+            />
+          </div>
+        </header>
+        <section className={styles.authShell}>
+          <div className={styles.authCard}>
+            <h1>You&apos;re in!</h1>
+            {username && (
+              <Link
+                href={`/u/${username}`}
+                style={{ display: "block", marginBottom: 12, color: "#ff4500" }}
+              >
+                View your profile →
+              </Link>
+            )}
+            <Link
+              href="/chat"
+              style={{ display: "block", marginBottom: 12, color: "#ff4500" }}
+            >
+              Open chat →
+            </Link>
+            <button className={styles.submitButton} onClick={handleLogout}>
+              Log Out
+            </button>
+          </div>
+        </section>
+      </main>
+    );
+  }
   const handleCreatePostClick = (e: React.MouseEvent) => {
     if (!isAuthed) { e.preventDefault(); setShowAuthPopup(true); }
   };
@@ -229,6 +306,29 @@ export default function Home() {
         </div>
       </header>
 
+      <section className={styles.authShell} aria-labelledby="auth-title">
+        <form className={styles.authCard} onSubmit={handleSubmit}>
+          <h1 id="auth-title">{isSignup ? "Sign Up" : "Log In"}</h1>
+
+          <p className={styles.policyText}>
+            By continuing, you agree to our{" "}
+            <button type="button">User Agreement</button> and acknowledge that
+            you understand the <button type="button">Privacy Policy</button>.
+          </p>
+
+          <div className={styles.oauthStack}>
+            <a href={buildApiUrl("/oauth2/authorization/google")}>
+              <Image
+                className={styles.googleLogo}
+                src="/google-g-2015.svg"
+                alt=""
+                width={22}
+                height={22}
+                aria-hidden="true"
+              />
+              Continue with Google
+            </a>
+          </div>
       <div className={styles.body}>
         {/* Left Sidebar */}
         <nav className={styles.leftSidebar}>

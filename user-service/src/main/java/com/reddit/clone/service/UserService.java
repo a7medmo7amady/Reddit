@@ -57,9 +57,14 @@ public class UserService {
         return toPublicProfile(u);
     }
 
+    public PublicProfileResponse getPublicProfileById(Long id) {
+        User u = findById(id);
+        return toPublicProfile(u);
+    }
+
     public PublicProfileResponse toPublicProfile(User u) {
         return new PublicProfileResponse(
-                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getId(), u.getUsername(), u.getDisplayName(), u.getBio(),
                 u.getAvatar(), u.getBanner(),
                 u.getPostKarma() + u.getCommentKarma(),
                 u.getCreatedAt());
@@ -124,7 +129,7 @@ public class UserService {
         return userBlockRepository.findByBlocker(blocker).stream()
                 .map(UserBlock::getBlocked)
                 .map(u -> new PublicProfileResponse(
-                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getId(), u.getUsername(), u.getDisplayName(), u.getBio(),
                 u.getAvatar(), u.getBanner(),
                 u.getPostKarma() + u.getCommentKarma(),
                 u.getCreatedAt()))
@@ -161,7 +166,7 @@ public class UserService {
         return userFollowRepository.findByFollower(follower).stream()
                 .map(UserFollow::getFollowed)
                 .map(u -> new PublicProfileResponse(
-                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getId(), u.getUsername(), u.getDisplayName(), u.getBio(),
                 u.getAvatar(), u.getBanner(),
                 u.getPostKarma() + u.getCommentKarma(),
                 u.getCreatedAt()))
@@ -174,7 +179,7 @@ public class UserService {
         return userFollowRepository.findByFollowed(user).stream()
                 .map(UserFollow::getFollower)
                 .map(u -> new PublicProfileResponse(
-                u.getUsername(), u.getDisplayName(), u.getBio(),
+                u.getId(), u.getUsername(), u.getDisplayName(), u.getBio(),
                 u.getAvatar(), u.getBanner(),
                 u.getPostKarma() + u.getCommentKarma(),
                 u.getCreatedAt()))

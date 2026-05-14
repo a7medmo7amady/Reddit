@@ -61,6 +61,7 @@ services:
       SEARCH_SERVICE_URL: http://search-service:8082
       VIDEO_SERVICE_URL: http://video-service:8083
       NOTIFICATION_SERVICE_URL: http://notification-service:8084
+      CHAT_SERVICE_URL: http://chat-service:8085
       # gRPC backend addresses
       USER_GRPC_ADDR: user-service:50051
       FEED_GRPC_ADDR: feed-service:50052
@@ -136,6 +137,24 @@ services:
       - postgres
       - mongo
       - kafka
+    restart: unless-stopped
+
+  chat-service:
+    build: ./chat-service
+    ports:
+      - "8085:8085"
+    environment:
+      PORT: "8085"
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DATABASE: chat_service
+      USER_SERVICE_URL: http://user-service:8080
+      REDIS_ADDR: "redis:6379"
+      KAFKA_BROKERS: kafka:9092
+    depends_on:
+      - mongo
+      - redis
+      - kafka
+      - user-service
     restart: unless-stopped
 
   zookeeper:

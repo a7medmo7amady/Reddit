@@ -322,6 +322,9 @@ router.delete('/posts/:id', async (req, res) => {
             deletedAt: new Date(),
         });
 
+        // ── Publish post.deleted event for search service ──────────────────
+        await kafkaService.publish('post.deleted', { id: req.params.id });
+
         res.json({ message: 'Post deleted. Media will be purged from storage within 24 hours.' });
     } catch (error) {
         res.status(500).json({ error: error.message });
