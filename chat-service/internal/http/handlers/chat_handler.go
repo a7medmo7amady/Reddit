@@ -87,6 +87,50 @@ func (h *ChatHandler) MarkRead(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *ChatHandler) HideConversation(c *gin.Context) {
+	userID := c.GetString("userID")
+	conversationID := c.Param("conversationId")
+
+	if err := h.chat.HideConversation(c.Request.Context(), userID, conversationID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *ChatHandler) MuteConversation(c *gin.Context) {
+	h.setConversationMuted(c, true)
+}
+
+func (h *ChatHandler) UnmuteConversation(c *gin.Context) {
+	h.setConversationMuted(c, false)
+}
+
+func (h *ChatHandler) SetConversationMuted(c *gin.Context) {
+	var req struct {
+		Muted bool `json:"muted"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.setConversationMuted(c, req.Muted)
+}
+
+func (h *ChatHandler) setConversationMuted(c *gin.Context, muted bool) {
+	userID := c.GetString("userID")
+	conversationID := c.Param("conversationId")
+
+	if err := h.chat.SetConversationMuted(c.Request.Context(), userID, conversationID, muted); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func (h *ChatHandler) GetInbox(c *gin.Context) {
 	userID := c.GetString("userID")
 

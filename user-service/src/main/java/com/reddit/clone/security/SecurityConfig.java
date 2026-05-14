@@ -38,6 +38,7 @@ public class SecurityConfig {
                         // Public read endpoints — /me must come BEFORE {username} so the template doesn't swallow it
                         .requestMatchers(HttpMethod.GET, "/test").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/users/id/{userId}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users/{username}").permitAll()
                         // Everything else requires auth
                         .anyRequest().authenticated()

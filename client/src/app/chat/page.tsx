@@ -5,13 +5,19 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChatMessage,
+  ChatUser,
   Conversation,
   InboxItem,
   createDirectConversation,
   getConversationMessages,
   getInbox,
+  getOrCreateCommunityRoom,
+  getUserById,
+  getUserByUsername,
+  hideConversation,
   markConversationRead,
   sendChatMessage,
+  setConversationMuted,
 } from "@/lib/chat";
 import { getChatWebSocketUrl } from "@/lib/config";
 import { getToken, logout } from "@/lib/auth";
@@ -64,6 +70,24 @@ function upsertMessage(messages: ChatMessage[], message: ChatMessage) {
   );
 }
 
+function dedupeInbox(items: InboxItem[]): InboxItem[] {
+  const seen = new Set<string>();
+  const deduped: InboxItem[] = [];
+
+  for (const item of items) {
+    const key =
+      item.type === "direct"
+        ? `direct:${[...(item.otherParticipantIds ?? [])].sort().join(",")}`
+        : `${item.type}:${item.communityId ?? item.conversationId}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  return deduped;
+}
+
 export default function ChatPage() {
   const [inbox, setInbox] = useState<InboxItem[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
@@ -71,13 +95,14 @@ export default function ChatPage() {
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [newParticipant, setNewParticipant] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [newCommunity, setNewCommunity] = useState("");
   const [isLoadingInbox, setIsLoadingInbox] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [connectionState, setConnectionState] =
-    useState<ConnectionState>("connecting");
+  const [, setConnectionState] = useState<ConnectionState>("connecting");
   const [typingUsers, setTypingUsers] = useState<Record<string, TypingUser[]>>(
     {}
   );
@@ -85,6 +110,7 @@ export default function ChatPage() {
     id: string | null;
     username: string | null;
   }>({ id: null, username: null });
+  const [profilesById, setProfilesById] = useState<Record<string, ChatUser>>({});
 
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,6 +124,22 @@ export default function ChatPage() {
   const activeInboxItem = inbox.find(
     (item) => item.conversationId === activeConversationId
   );
+  const visibleMessages = useMemo(
+    () => (Array.isArray(messages) ? messages : []),
+    [messages]
+  );
+  const activeConversationTitle = activeInboxItem
+    ? conversationTitle(activeInboxItem)
+    : activeConversationId
+      ? `Chat ${shortId(activeConversationId)}`
+      : "Chat";
+  const activeOtherParticipantId =
+    activeInboxItem?.type === "direct"
+      ? activeInboxItem.otherParticipantIds?.[0]
+      : null;
+  const activeProfileHref = activeOtherParticipantId
+    ? profileHrefForUserId(activeOtherParticipantId)
+    : null;
 
   useEffect(() => {
     activeConversationRef.current = activeConversationId;
@@ -115,6 +157,29 @@ export default function ChatPage() {
     );
   }, [activeConversationId, myUserId, typingUsers]);
 
+  function conversationTitle(item: InboxItem): string {
+    if (item.type === "community") {
+      return item.communityId ? `r/${item.communityId}` : "Community chat";
+    }
+
+    const otherParticipantId = item.otherParticipantIds?.[0];
+    if (!otherParticipantId) return "Direct message";
+
+    const profile = profilesById[otherParticipantId];
+    return profile?.displayName || profile?.username || `u/${otherParticipantId}`;
+  }
+
+  function participantLabel(userId: string): string {
+    const profile = profilesById[userId];
+    return profile?.displayName || profile?.username || `u/${userId}`;
+  }
+
+  function profileHrefForUserId(userId: string): string {
+    const username =
+      userId === myUserId ? myUsername : profilesById[userId]?.username;
+    return `/u/${username ?? userId}`;
+  }
+
   useEffect(() => {
     queueMicrotask(() => {
       setCurrentUser({
@@ -130,8 +195,9 @@ export default function ChatPage() {
 
     getInbox()
       .then((items) => {
-        setInbox(items);
-        if (items[0]) setActiveConversationId(items[0].conversationId);
+        const deduped = dedupeInbox(items);
+        setInbox(deduped);
+        if (deduped[0]) setActiveConversationId(deduped[0].conversationId);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setIsLoadingInbox(false));
@@ -167,6 +233,43 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, activeTypingUsers.length]);
+
+  useEffect(() => {
+    const profileIds = [
+      ...inbox.flatMap((item) => item.otherParticipantIds ?? []),
+      ...visibleMessages.map((message) => message.senderId),
+    ];
+    const missingIds = Array.from(
+      new Set(
+        profileIds.filter(
+          (userId) => userId && userId !== myUserId && !profilesById[userId]
+        )
+      )
+    );
+    if (missingIds.length === 0) return;
+
+    let ignore = false;
+    Promise.all(
+      missingIds.map((userId) =>
+        getUserById(userId)
+          .then((profile) => [userId, profile] as const)
+          .catch(() => null)
+      )
+    ).then((entries) => {
+      if (ignore) return;
+      setProfilesById((current) => {
+        const next = { ...current };
+        for (const entry of entries) {
+          if (entry) next[entry[0]] = entry[1];
+        }
+        return next;
+      });
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [inbox, myUserId, profilesById, visibleMessages]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -225,13 +328,23 @@ export default function ChatPage() {
 
   function handleRealtimeEvent(payload: RealtimeEvent) {
     if (payload.type === "chat.message" && payload.message) {
+      const isActiveConversation =
+        payload.conversationId === activeConversationRef.current;
+
       setMessages((current) => {
-        if (payload.conversationId !== activeConversationRef.current) {
+        if (!isActiveConversation) {
           return current;
         }
         return upsertMessage(current, payload.message as ChatMessage);
       });
-      refreshInbox();
+
+      if (isActiveConversation && payload.conversationId) {
+        markConversationRead(payload.conversationId)
+          .catch(() => {})
+          .finally(() => refreshInbox());
+      } else {
+        refreshInbox();
+      }
       return;
     }
 
@@ -260,8 +373,9 @@ export default function ChatPage() {
   async function refreshInbox() {
     try {
       const items = await getInbox();
-      setInbox(items);
-      return items;
+      const deduped = dedupeInbox(items);
+      setInbox(deduped);
+      return deduped;
     } catch {
       return [];
     }
@@ -269,18 +383,45 @@ export default function ChatPage() {
 
   async function handleCreateConversation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const participantId = newParticipant.trim();
-    if (!participantId) return;
+    const username = newUsername.trim().replace(/^u\//i, "");
+    if (!username || isCreatingConversation) return;
 
     setError(null);
+    setIsCreatingConversation(true);
     try {
+      const participant = await getUserByUsername(username);
       const conversation: Conversation =
-        await createDirectConversation(participantId);
+        await createDirectConversation(String(participant.id));
+      setProfilesById((current) => ({
+        ...current,
+        [String(participant.id)]: participant,
+      }));
       await refreshInbox();
       setActiveConversationId(conversation.id);
-      setNewParticipant("");
+      setNewUsername("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start chat");
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  }
+
+  async function handleCreateCommunityRoom(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const communityId = newCommunity.trim().replace(/^r\//i, "");
+    if (!communityId || isCreatingConversation) return;
+
+    setError(null);
+    setIsCreatingConversation(true);
+    try {
+      const conversation = await getOrCreateCommunityRoom(communityId);
+      await refreshInbox();
+      setActiveConversationId(conversation.id);
+      setNewCommunity("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open community chat");
+    } finally {
+      setIsCreatingConversation(false);
     }
   }
 
@@ -301,6 +442,52 @@ export default function ChatPage() {
       setError(err instanceof Error ? err.message : "Message failed to send");
     } finally {
       setIsSending(false);
+    }
+  }
+
+  async function handleToggleMute() {
+    if (!activeConversationId || !activeInboxItem) return;
+
+    const muted = !activeInboxItem.muted;
+    setInbox((current) =>
+      current.map((item) =>
+        item.conversationId === activeConversationId ? { ...item, muted } : item
+      )
+    );
+
+    try {
+      await setConversationMuted(activeConversationId, muted);
+      refreshInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update chat");
+      setInbox((current) =>
+        current.map((item) =>
+          item.conversationId === activeConversationId
+            ? { ...item, muted: !muted }
+            : item
+        )
+      );
+    }
+  }
+
+  async function handleDeleteConversation() {
+    if (!activeConversationId) return;
+
+    const conversationId = activeConversationId;
+    const remainingInbox = inbox.filter(
+      (item) => item.conversationId !== conversationId
+    );
+    setInbox(remainingInbox);
+    setActiveConversationId(remainingInbox[0]?.conversationId ?? null);
+    setMessages([]);
+    setError(null);
+
+    try {
+      await hideConversation(conversationId);
+      refreshInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete chat");
+      refreshInbox();
     }
   }
 
@@ -364,18 +551,31 @@ export default function ChatPage() {
           <div className={styles.panelHeader}>
             <div>
               <h1>Chats</h1>
-              <p>{connectionState}</p>
             </div>
           </div>
 
           <form className={styles.newChatForm} onSubmit={handleCreateConversation}>
             <input
-              value={newParticipant}
-              onChange={(event) => setNewParticipant(event.target.value)}
-              placeholder="User ID"
-              aria-label="User ID"
+              value={newUsername}
+              onChange={(event) => setNewUsername(event.target.value)}
+              placeholder="Username"
+              aria-label="Username"
             />
-            <button type="submit">Start</button>
+            <button type="submit" disabled={isCreatingConversation}>
+              DM
+            </button>
+          </form>
+
+          <form className={styles.newChatForm} onSubmit={handleCreateCommunityRoom}>
+            <input
+              value={newCommunity}
+              onChange={(event) => setNewCommunity(event.target.value)}
+              placeholder="Community"
+              aria-label="Community"
+            />
+            <button type="submit" disabled={isCreatingConversation}>
+              Room
+            </button>
           </form>
 
           {error && <p className={styles.errorText}>{error}</p>}
@@ -401,11 +601,10 @@ export default function ChatPage() {
                   </span>
                   <span className={styles.inboxText}>
                     <span className={styles.inboxTitle}>
-                      {item.type === "community"
-                        ? item.communityId ?? shortId(item.conversationId)
-                        : shortId(item.conversationId)}
+                      {conversationTitle(item)}
                     </span>
                     <span className={styles.inboxPreview}>
+                      {item.muted ? "Muted · " : ""}
                       {item.lastMessage?.content ?? "No messages yet"}
                     </span>
                   </span>
@@ -425,27 +624,52 @@ export default function ChatPage() {
           {activeConversationId ? (
             <>
               <header className={styles.chatHeader}>
-                <div className={styles.avatarLarge}>u/</div>
-                <div>
-                  <h2>
-                    {activeInboxItem?.type === "community"
-                      ? activeInboxItem.communityId
-                      : `Chat ${shortId(activeConversationId)}`}
-                  </h2>
-                  <p>{messages.length} messages</p>
+                {activeProfileHref ? (
+                  <Link href={activeProfileHref} className={styles.avatarLarge}>
+                    u/
+                  </Link>
+                ) : (
+                  <div className={styles.avatarLarge}>
+                    {activeInboxItem?.type === "community" ? "r/" : "u/"}
+                  </div>
+                )}
+                <div className={styles.chatHeaderText}>
+                  {activeProfileHref ? (
+                    <Link href={activeProfileHref}>
+                      <h2>{activeConversationTitle}</h2>
+                    </Link>
+                  ) : (
+                    <h2>{activeConversationTitle}</h2>
+                  )}
+                  <p>
+                    {visibleMessages.length} messages
+                    {activeInboxItem?.muted ? " · muted" : ""}
+                  </p>
+                </div>
+                <div className={styles.chatActions}>
+                  <button type="button" onClick={handleToggleMute}>
+                    {activeInboxItem?.muted ? "Unmute" : "Mute"}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.dangerButton}
+                    onClick={handleDeleteConversation}
+                  >
+                    Delete
+                  </button>
                 </div>
               </header>
 
               <div className={styles.messages}>
                 {isLoadingMessages ? (
                   <p className={styles.muted}>Loading messages...</p>
-                ) : messages.length === 0 ? (
+                ) : visibleMessages.length === 0 ? (
                   <div className={styles.emptyState}>
                     <h3>Start the conversation</h3>
                     <p>Send a message and it will appear here in real time.</p>
                   </div>
                 ) : (
-                  messages.map((message) => {
+                  visibleMessages.map((message) => {
                     const mine = message.senderId === myUserId;
                     return (
                       <article
@@ -454,13 +678,18 @@ export default function ChatPage() {
                           mine ? styles.messageMine : ""
                         }`}
                       >
-                        <div className={styles.messageAvatar}>
+                        <Link
+                          href={profileHrefForUserId(message.senderId)}
+                          className={styles.messageAvatar}
+                        >
                           {mine ? "me" : "u/"}
-                        </div>
+                        </Link>
                         <div className={styles.messageBubble}>
                           <div className={styles.messageMeta}>
-                            <Link href={`/u/${message.senderId}`}>
-                              {mine ? "You" : `u/${message.senderId}`}
+                            <Link
+                              href={profileHrefForUserId(message.senderId)}
+                            >
+                              {mine ? "You" : participantLabel(message.senderId)}
                             </Link>
                             <span>{formatTime(message.createdAt)}</span>
                           </div>
@@ -471,10 +700,28 @@ export default function ChatPage() {
                   })
                 )}
                 {activeTypingUsers.length > 0 && (
-                  <div className={styles.typingLine}>
-                    {activeTypingUsers.map((user) => `u/${user.userId}`).join(", ")}{" "}
-                    typing...
-                  </div>
+                  <article className={styles.messageRow}>
+                    <Link
+                      href={profileHrefForUserId(activeTypingUsers[0].userId)}
+                      className={styles.messageAvatar}
+                    >
+                      u/
+                    </Link>
+                    <div className={`${styles.messageBubble} ${styles.typingBubble}`}>
+                      <div className={styles.messageMeta}>
+                        <span>
+                          {activeTypingUsers
+                            .map((user) => participantLabel(user.userId))
+                            .join(", ")}
+                        </span>
+                      </div>
+                      <p>
+                        <span className={styles.typingDot} />
+                        <span className={styles.typingDot} />
+                        <span className={styles.typingDot} />
+                      </p>
+                    </div>
+                  </article>
                 )}
                 <div ref={bottomRef} />
               </div>
@@ -483,6 +730,11 @@ export default function ChatPage() {
                 <textarea
                   value={draft}
                   onChange={(event) => sendTypingSignal(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" || event.shiftKey) return;
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }}
                   placeholder="Message"
                   rows={1}
                   maxLength={2000}
@@ -499,22 +751,6 @@ export default function ChatPage() {
             </div>
           )}
         </section>
-
-        <aside className={styles.contextPanel}>
-          <h2>About chat</h2>
-          <p>
-            Realtime DMs, typing indicators, read tracking, and missed-message
-            recovery through the chat service.
-          </p>
-          <div className={styles.contextStat}>
-            <span>{inbox.length}</span>
-            <p>conversations</p>
-          </div>
-          <div className={styles.contextStat}>
-            <span>{connectionState === "online" ? "Live" : "Retrying"}</span>
-            <p>websocket</p>
-          </div>
-        </aside>
       </div>
     </main>
   );

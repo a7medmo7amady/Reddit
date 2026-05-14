@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"regexp"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,7 +100,17 @@ func (s *ChatService) Start(ctx context.Context) {
 func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, req dto.CreateConversationRequest) (*models.Conversation, error) {
 	now := time.Now().UTC()
 
-	allParticipants := append(req.ParticipantIDs, creatorID)
+	creatorID = normalizeUserID(creatorID)
+	participantID := normalizeUserID(req.ParticipantIDs[0])
+	if creatorID == "" || participantID == "" {
+		return nil, errors.New("participant id is required")
+	}
+	if participantID == creatorID {
+		return nil, errors.New("cannot open dm with yourself")
+	}
+
+	req.ParticipantIDs = []string{participantID}
+	allParticipants := []string{participantID, creatorID}
 
 	for _, userID := range allParticipants {
 		exists, err := s.userExists(ctx, userID)
@@ -118,6 +130,14 @@ func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, 
 		}
 	}
 
+	existing, err := s.findDirectConversation(ctx, creatorID, participantID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+
 	conversation := models.Conversation{
 		ID:        primitive.NewObjectID(),
 		Type:      "direct",
@@ -125,7 +145,7 @@ func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, 
 		UpdatedAt: now,
 	}
 
-	_, err := s.conversations.InsertOne(ctx, conversation)
+	_, err = s.conversations.InsertOne(ctx, conversation)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +166,66 @@ func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, 
 	}
 
 	return &conversation, nil
+}
+
+func (s *ChatService) findDirectConversation(ctx context.Context, userA, userB string) (*models.Conversation, error) {
+	cursor, err := s.participants.Find(ctx, bson.M{"userId": userA})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var userAParticipations []models.ConversationParticipant
+	if err := cursor.All(ctx, &userAParticipations); err != nil {
+		return nil, err
+	}
+	if len(userAParticipations) == 0 {
+		return nil, nil
+	}
+
+	conversationIDs := make([]primitive.ObjectID, 0, len(userAParticipations))
+	for _, participation := range userAParticipations {
+		conversationIDs = append(conversationIDs, participation.ConversationID)
+	}
+
+	cursor, err = s.participants.Find(ctx, bson.M{
+		"conversationId": bson.M{"$in": conversationIDs},
+		"userId":         userB,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var sharedParticipations []models.ConversationParticipant
+	if err := cursor.All(ctx, &sharedParticipations); err != nil {
+		return nil, err
+	}
+
+	for _, participation := range sharedParticipations {
+		participantCount, err := s.participants.CountDocuments(ctx, bson.M{"conversationId": participation.ConversationID})
+		if err != nil {
+			return nil, err
+		}
+		if participantCount != 2 {
+			continue
+		}
+
+		var conversation models.Conversation
+		err = s.conversations.FindOne(ctx, bson.M{
+			"_id":  participation.ConversationID,
+			"type": "direct",
+		}).Decode(&conversation)
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		return &conversation, nil
+	}
+
+	return nil, nil
 }
 
 func (s *ChatService) GetOrCreateCommunityRoom(ctx context.Context, userID, communityID string) (*models.Conversation, error) {
@@ -245,6 +325,7 @@ func (s *ChatService) SendMessage(ctx context.Context, senderID string, req dto.
 	_, _ = s.conversations.UpdateByID(ctx, conversationID, bson.M{"$set": bson.M{"updatedAt": now}})
 
 	participantIDs, _ := s.getAllParticipants(ctx, conversationID)
+	_, _ = s.participants.UpdateMany(ctx, bson.M{"conversationId": conversationID}, bson.M{"$unset": bson.M{"hiddenAt": ""}})
 	if s.rt != nil {
 		s.rt.PublishToUsers(ctx, participantIDs, map[string]any{
 			"type":           "chat.message",
@@ -391,6 +472,14 @@ func (s *ChatService) userExists(ctx context.Context, userID string) (bool, erro
 		return true, nil
 	}
 	return res.(bool), nil
+}
+
+func normalizeUserID(userID string) string {
+	userID = strings.TrimSpace(userID)
+	if parsed, err := strconv.ParseInt(userID, 10, 64); err == nil {
+		return strconv.FormatInt(parsed, 10)
+	}
+	return userID
 }
 
 func (s *ChatService) isBlockedDegradeToAllow(ctx context.Context, senderID, receiverID string) bool {
@@ -559,6 +648,51 @@ func (s *ChatService) MarkRead(ctx context.Context, userID string, conversationI
 	return nil
 }
 
+func (s *ChatService) HideConversation(ctx context.Context, userID string, conversationIDHex string) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	now := time.Now().UTC()
+	res, err := s.participants.UpdateOne(ctx, bson.M{
+		"conversationId": conversationID,
+		"userId":         userID,
+	}, bson.M{
+		"$set": bson.M{"hiddenAt": now},
+	})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return errors.New("participant not found")
+	}
+
+	return nil
+}
+
+func (s *ChatService) SetConversationMuted(ctx context.Context, userID string, conversationIDHex string, muted bool) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	res, err := s.participants.UpdateOne(ctx, bson.M{
+		"conversationId": conversationID,
+		"userId":         userID,
+	}, bson.M{
+		"$set": bson.M{"muted": muted},
+	})
+	if err != nil {
+		return err
+	}
+	if res.MatchedCount == 0 {
+		return errors.New("participant not found")
+	}
+
+	return nil
+}
+
 func (s *ChatService) DeleteMessage(ctx context.Context, actorID, messageIDHex string, isModerator bool) error {
 	messageID, err := primitive.ObjectIDFromHex(messageIDHex)
 	if err != nil {
@@ -651,7 +785,7 @@ func (s *ChatService) ReportMessage(ctx context.Context, reporterID, messageIDHe
 func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxItem, error) {
 	// Aggregate on participants to find conversations, latest message and unread count.
 	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: bson.M{"userId": userID}}},
+		{{Key: "$match", Value: bson.M{"userId": userID, "hiddenAt": bson.M{"$exists": false}}}},
 		{{Key: "$lookup", Value: bson.M{
 			"from":         "conversations",
 			"localField":   "conversationId",
@@ -708,6 +842,7 @@ func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxI
 			"communityId":    "$conv.communityId",
 			"updatedAt":      1,
 			"unreadCount":    1,
+			"muted":          1,
 			"lastMsg":        1,
 		}}},
 	}
@@ -724,6 +859,7 @@ func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxI
 		CommunityID    string             `bson:"communityId"`
 		UpdatedAt      time.Time          `bson:"updatedAt"`
 		UnreadCount    int                `bson:"unreadCount"`
+		Muted          bool               `bson:"muted"`
 		LastMsg        *struct {
 			ID        primitive.ObjectID `bson:"_id"`
 			SenderID  string             `bson:"senderId"`
@@ -743,7 +879,15 @@ func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxI
 			Type:           r.Type,
 			CommunityID:    r.CommunityID,
 			UnreadCount:    r.UnreadCount,
+			Muted:          r.Muted,
 			UpdatedAt:      r.UpdatedAt,
+		}
+		if r.Type == "direct" {
+			otherParticipants, err := s.getOtherParticipants(ctx, r.ConversationID, userID)
+			if err != nil {
+				return nil, err
+			}
+			item.OtherParticipantIDs = otherParticipants
 		}
 		if r.LastMsg != nil {
 			item.LastMessage = &dto.InboxMessage{

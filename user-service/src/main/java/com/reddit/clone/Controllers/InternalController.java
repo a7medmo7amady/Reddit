@@ -46,7 +46,7 @@ public class InternalController {
 
     private Optional<Long> parseId(String value) {
         try {
-            return Optional.of(Long.parseLong(value));
+            return Optional.of(Long.parseLong(value.trim()));
         } catch (NumberFormatException e) {
             return Optional.empty();
         }

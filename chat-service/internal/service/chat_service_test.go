@@ -4,6 +4,27 @@ import (
 	"testing"
 )
 
+func TestNormalizeUserID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "TrimsWhitespace", in: " 42 ", want: "42"},
+		{name: "RemovesLeadingZeros", in: "00042", want: "42"},
+		{name: "KeepsNonNumeric", in: "user-42", want: "user-42"},
+		{name: "KeepsEmpty", in: "   ", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := normalizeUserID(tt.in); got != tt.want {
+				t.Fatalf("normalizeUserID(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestExtractMentions(t *testing.T) {
 	tests := []struct {
 		name    string

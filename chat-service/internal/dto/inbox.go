@@ -3,12 +3,14 @@ package dto
 import "time"
 
 type InboxItem struct {
-	ConversationID string        `json:"conversationId"`
-	Type           string        `json:"type"`
-	CommunityID    string        `json:"communityId,omitempty"`
-	LastMessage    *InboxMessage `json:"lastMessage,omitempty"`
-	UnreadCount    int           `json:"unreadCount"`
-	UpdatedAt      time.Time     `json:"updatedAt"`
+	ConversationID      string        `json:"conversationId"`
+	Type                string        `json:"type"`
+	CommunityID         string        `json:"communityId,omitempty"`
+	OtherParticipantIDs []string      `json:"otherParticipantIds,omitempty"`
+	LastMessage         *InboxMessage `json:"lastMessage,omitempty"`
+	UnreadCount         int           `json:"unreadCount"`
+	Muted               bool          `json:"muted"`
+	UpdatedAt           time.Time     `json:"updatedAt"`
 }
 
 type InboxMessage struct {

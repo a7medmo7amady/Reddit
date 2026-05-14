@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -15,7 +17,7 @@ type Client struct {
 
 func New(baseURL string) *Client {
 	return &Client{
-		baseURL: baseURL,
+		baseURL: strings.TrimRight(baseURL, "/"),
 		httpClient: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -23,7 +25,7 @@ func New(baseURL string) *Client {
 }
 
 func (c *Client) UserExists(ctx context.Context, userID string) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/internal/users/"+userID+"/exists", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/internal/users/"+url.PathEscape(strings.TrimSpace(userID))+"/exists", nil)
 	if err != nil {
 		return false, err
 	}
@@ -54,7 +56,12 @@ func (c *Client) UserExists(ctx context.Context, userID string) (bool, error) {
 }
 
 func (c *Client) IsBlocked(ctx context.Context, senderID, receiverID string) (bool, error) {
-	url := fmt.Sprintf("%s/internal/users/%s/blocked/%s", c.baseURL, senderID, receiverID)
+	url := fmt.Sprintf(
+		"%s/internal/users/%s/blocked/%s",
+		c.baseURL,
+		url.PathEscape(strings.TrimSpace(senderID)),
+		url.PathEscape(strings.TrimSpace(receiverID)),
+	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
