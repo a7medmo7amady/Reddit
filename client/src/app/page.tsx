@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { saveToken, getToken, logout } from "@/lib/auth";
@@ -10,7 +11,9 @@ import AuthPopup from "@/components/AuthPopup";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
-type TabMode = "trending" | "followed";
+type TabMode = "home" | "trending" | "followed";
+
+interface PostImage { thumbnail: string; preview: string; full: string; }
 
 interface Post {
   id?: string | number;
@@ -26,6 +29,8 @@ interface Post {
   score?: number;
   commentCount?: number;
   createdAt: string;
+  images?: PostImage[];
+  video?: { status: string; playbackUrl?: string };
 }
 
 function formatScore(n: number): string {
@@ -45,15 +50,25 @@ function timeAgo(iso: string): string {
 }
 
 const NAV_LINKS = [
-  { label: "Home", href: "/" },
-  { label: "Popular", href: "/popular" },
-  { label: "Explore", href: "/explore" },
+  { label: "Home",    href: "/" },
+  { label: "Trending", href: "/trending" },
+  { label: "Following", href: "/following" },
 ];
 
+const PAGE_TAB: Record<string, "home" | "trending" | "followed"> = {
+  "/":         "home",
+  "/trending": "trending",
+  "/following": "followed",
+};
+
 export default function Home() {
+  const searchParams = useSearchParams();
   const [isAuthed, setIsAuthed] = useState(false);
   const [showAuthPopup, setShowAuthPopup] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabMode>("trending");
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<TabMode>(
+    tabParam === "followed" ? "followed" : tabParam === "trending" ? "trending" : "home"
+  );
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState<string | null>(null);
@@ -80,27 +95,70 @@ export default function Home() {
   const fetchPosts = useCallback(async () => {
     setIsLoading(true);
     try {
-      let url = `${API_URL}/posts/trending`;
       const headers: HeadersInit = {};
       const token = getToken();
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
+      let fetchedPosts: Post[] = [];
 
       if (activeTab === "followed") {
-        const followed = localStorage.getItem("followedCommunities") || "programming,gaming,golang";
-        url = `${API_URL}/posts/feed?communities=${followed}`;
+        const followed = localStorage.getItem("followedCommunities");
+        if (!followed) {
+          setPosts([]);
+          setIsLoading(false);
+          return;
+        }
+        const res = await fetch(`${API_URL}/posts/feed?communities=${followed}`, token ? { headers } : undefined);
+        if (res.ok) {
+          const data = await res.json();
+          fetchedPosts = data.posts || [];
+        }
+      } else if (activeTab === "trending") {
+        const res = await fetch(`${API_URL}/posts/trending`, token ? { headers } : undefined);
+        if (res.ok) {
+          const data = await res.json();
+          fetchedPosts = data.posts || [];
+        }
+      } else if (activeTab === "home") {
+        const followed = localStorage.getItem("followedCommunities");
+        if (isAuthed && followed) {
+          const [trendingRes, followedRes] = await Promise.all([
+            fetch(`${API_URL}/posts/trending`, token ? { headers } : undefined),
+            fetch(`${API_URL}/posts/feed?communities=${followed}`, token ? { headers } : undefined)
+          ]);
+          const trendingData = trendingRes.ok ? await trendingRes.json() : { posts: [] };
+          const followedData = followedRes.ok ? await followedRes.json() : { posts: [] };
+          
+          fetchedPosts = [...(trendingData.posts || []), ...(followedData.posts || [])];
+          // Simple random shuffle for the mix
+          fetchedPosts.sort(() => Math.random() - 0.5);
+        } else {
+          const res = await fetch(`${API_URL}/posts/trending`, token ? { headers } : undefined);
+          if (res.ok) {
+            const data = await res.json();
+            fetchedPosts = data.posts || [];
+          }
+        }
       }
 
-      if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(url, token ? { headers } : undefined);
-      if (!res.ok) throw new Error("Failed to fetch posts");
+      // Deduplicate by ID
+      const uniquePosts: Post[] = [];
+      const seen = new Set<string>();
+      for (const p of fetchedPosts) {
+        const k = p.stringId || String(p.id);
+        if (!seen.has(k)) {
+          seen.add(k);
+          uniquePosts.push(p);
+        }
+      }
 
-      const data = await res.json();
-      setPosts(data.posts || []);
+      setPosts(uniquePosts);
     } catch (err) {
       console.error("Error fetching posts:", err);
     } finally {
       setIsLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, isAuthed]);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
@@ -110,14 +168,28 @@ export default function Home() {
     if (!isAuthed) { setShowAuthPopup(true); return; }
     const prev = votedPosts[postKey] ?? 0;
     const next = prev === direction ? 0 : direction;
+    const delta = next - prev;
     setVotedPosts(v => ({ ...v, [postKey]: next }));
+    setPosts(ps => ps.map(p => {
+      const k = p.stringId || String(p.id);
+      if (k !== postKey) return p;
+      return { ...p, score: (p.score ?? 0) + delta };
+    }));
     try {
-      await fetch(`${API_URL}/posts/${postKey}/vote`, {
+      const res = await fetch(`${API_URL}/posts/${postKey}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
         body: JSON.stringify({ direction: next }),
       });
-    } catch { /* optimistic — ignore */ }
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(ps => ps.map(p => {
+          const k = p.stringId || String(p.id);
+          if (k !== postKey) return p;
+          return { ...p, upvotes: data.upvotes, downvotes: data.downvotes, score: data.score };
+        }));
+      }
+    } catch { /* optimistic — keep local delta */ }
   };
 
   const handleTabClick = (tab: TabMode) => {
@@ -135,7 +207,7 @@ export default function Home() {
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <Link href="/" className={styles.brand}>
-            <Image src="/reddit-1.svg" alt="Reddit" width={108} height={36} priority style={{ width: "auto", height: 36 }} />
+            <Image src="/reddit-1.svg" alt="Reddit" width={108} height={36} priority />
           </Link>
         </div>
 
@@ -161,13 +233,19 @@ export default function Home() {
         {/* Left Sidebar */}
         <nav className={styles.leftSidebar}>
           <ul className={styles.navList}>
-            {NAV_LINKS.map(({ label, href }) => (
-              <li key={label}>
-                <Link href={href} className={`${styles.navItem} ${label === "Home" ? styles.navActive : ""}`}>
-                  <span>{label}</span>
-                </Link>
-              </li>
-            ))}
+            {NAV_LINKS.map(({ label, href }) => {
+              const isActive =
+                (label === "Home"    && activeTab === "home") ||
+                (label === "Trending" && activeTab === "trending") ||
+                (label === "Following" && activeTab === "followed");
+              return (
+                <li key={label}>
+                  <Link href={href} className={`${styles.navItem} ${isActive ? styles.navActive : ""}`}>
+                    <span>{label}</span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
 
           <div className={styles.sidebarDivider} />
@@ -194,20 +272,6 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className={styles.sortBar}>
-            <button
-              className={`${styles.sortBtn} ${activeTab === "trending" ? styles.sortActive : ""}`}
-              onClick={() => handleTabClick("trending")}
-            >
-              Trending
-            </button>
-            <button
-              className={`${styles.sortBtn} ${activeTab === "followed" ? styles.sortActive : ""}`}
-              onClick={() => handleTabClick("followed")}
-            >
-              Following
-            </button>
-          </div>
 
           {isLoading ? (
             <div className={styles.placeholder}>
@@ -226,11 +290,12 @@ export default function Home() {
                   <article key={key} className={styles.postCard}>
                     <div className={styles.postBody}>
                       <div className={styles.postMeta}>
+                        <div className={styles.postAuthorAvatar}>{authorName.charAt(0).toUpperCase()}</div>
                         <Link href={`/r/${post.community}`} className={styles.communityTag}>
                           r/{post.community}
                         </Link>
                         <span className={styles.metaDot}>•</span>
-                        <span className={styles.metaText}>Posted by u/{authorName}</span>
+                        <span className={styles.metaText}>u/{authorName}</span>
                         <span className={styles.metaDot}>•</span>
                         <span className={styles.metaText}>{timeAgo(post.createdAt)}</span>
                       </div>
@@ -238,6 +303,16 @@ export default function Home() {
                         <h2 className={styles.postTitle}>{post.title}</h2>
                       </Link>
                       {post.body && <p className={styles.postExcerpt}>{post.body}</p>}
+                      {post.images && post.images.length > 0 && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`${API_URL}${post.images[0].preview}`} alt="" className={styles.postMediaPreview} />
+                      )}
+                      {post.type === "video" && post.video?.playbackUrl && (
+                        <video src={post.video.playbackUrl} className={styles.postMediaPreview} muted playsInline />
+                      )}
+                      {post.type === "video" && !post.video?.playbackUrl && (
+                        <div className={styles.videoPlaceholder}>&#9654; Video processing...</div>
+                      )}
                       <div className={styles.postActions}>
                         {/* Vote pill */}
                         <div className={styles.votePill}>
@@ -249,7 +324,7 @@ export default function Home() {
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4 L20 14 H4 Z"/></svg>
                           </button>
                           <span className={`${styles.score} ${voted === 1 ? styles.scoreUp : voted === -1 ? styles.scoreDown : ""}`}>
-                            {formatScore(score + voted)}
+                            {formatScore(score)}
                           </span>
                           <button
                             className={`${styles.voteBtn} ${voted === -1 ? styles.downvoted : ""}`}

@@ -53,7 +53,7 @@ func main() {
 		log.Println("[gRPC] VideoService client connected")
 		// Warm up trending communities from VideoService on startup
 		go func() {
-			for _, community := range []string{"programming", "golang", "python", "gaming"} {
+			for _, community := range []string{"programming", "golang", "python", "gaming", "worldnews", "science", "technology", "AskReddit", "linux", "webdev"} {
 				if err := videoClient.SyncCommunityPosts(ctx, community, pc, tc); err != nil {
 					log.Printf("[gRPC] sync r/%s: %v", community, err)
 				}

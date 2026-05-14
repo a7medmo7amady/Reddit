@@ -117,6 +117,31 @@
   display: block;
 }
 
+.downloadBtn {
+  display: inline-block;
+  padding: 6px 14px;
+  margin: 8px 0 4px;
+  background: #272729;
+  color: #d7dadc;
+  border: 1px solid #343536;
+  border-radius: 4px;
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.downloadBtn:hover { background: #333; }
+
+.videoProcessing {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  background: #1a1a1b;
+  border: 1px solid #343536;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
 .postActions {
   display: flex;
   align-items: center;

@@ -3,9 +3,8 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const CommentModel = require('../models/comment.model');
 const PostModel = require('../models/post.model');
+const kafkaService = require('../services/kafka.service');
 
-// ── GET /posts/:postId/comments ──────────────────────────────────────────────
-// Fetch paginated comments for a specific post
 router.get('/posts/:postId/comments', async (req, res) => {
     try {
         const { postId } = req.params;
@@ -21,13 +20,30 @@ router.get('/posts/:postId/comments', async (req, res) => {
     }
 });
 
-// ── POST /posts/:postId/comments ─────────────────────────────────────────────
-// Create a new comment on a post
+router.get('/comments', async (req, res) => {
+    try {
+        const { author, authorId, postId, limit, page } = req.query;
+
+        const result = await CommentModel.findList({
+            author,
+            authorId,
+            postId,
+            limit: parseInt(limit) || 20,
+            page: parseInt(page) || 1
+        });
+        
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 router.post('/posts/:postId/comments', async (req, res) => {
     try {
         const { postId } = req.params;
         const { body, parentId } = req.body;
         const authorId = req.headers['x-user-id'] || 'anonymous';
+        const author = req.headers['x-username'] || 'anonymous';
 
         if (!body || body.trim().length === 0) {
             return res.status(400).json({ error: 'Comment body cannot be empty.' });
@@ -43,12 +59,28 @@ router.post('/posts/:postId/comments', async (req, res) => {
         const comment = await CommentModel.create(commentId, {
             postId,
             authorId,
+            author,
             body,
             parentId: parentId || null
         });
 
         // Increment comment count on the post
         await PostModel.update(postId, { $inc: { commentCount: 1 } });
+
+        const updatedPost = await PostModel.findById(postId);
+        await kafkaService.publish('post', {
+            id:           updatedPost.id,
+            title:        updatedPost.title,
+            body:         updatedPost.body,
+            community:    updatedPost.community,
+            authorId:     updatedPost.authorId,
+            author:       updatedPost.author,
+            type:         'text',
+            upvotes:      updatedPost.upvotes,
+            downvotes:    updatedPost.downvotes,
+            commentCount: updatedPost.commentCount,
+            createdAt:    updatedPost.createdAt,
+        });
 
         res.status(201).json(comment);
     } catch (error) {

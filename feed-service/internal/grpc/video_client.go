@@ -45,7 +45,7 @@ func (v *VideoClient) SyncCommunityPosts(ctx context.Context, community string, 
 		if err := pc.Add(ctx, post); err != nil {
 			log.Printf("[VideoClient] PostCache write error for post %s: %v", p.Id, err)
 		}
-		if err := tc.Add(ctx, post); err != nil {
+		if err := tc.AddIfNotExists(ctx, post); err != nil {
 			log.Printf("[VideoClient] TrendingCache write error for post %s: %v", p.Id, err)
 		}
 	}

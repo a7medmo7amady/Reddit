@@ -117,6 +117,7 @@ router.post('/posts', uploadFields, async (req, res) => {
         console.log(`[CreatePost] Post saved. ID: ${postId}`);
 
         // ── Publish post.created event for feed-service ───────────────────
+        const postType = videoFile ? 'video' : (req.files?.images?.length ? 'image' : (url ? 'link' : 'text'));
         await kafkaService.publish('post', {
             id:           postId,
             title:        post.title,
@@ -124,11 +125,13 @@ router.post('/posts', uploadFields, async (req, res) => {
             community:    post.community,
             authorId:     post.authorId,
             author:       post.author,
-            type:         videoFile ? 'video' : (req.files?.images?.length ? 'image' : (url ? 'link' : 'text')),
+            type:         postType,
             upvotes:      0,
             downvotes:    0,
             commentCount: 0,
             createdAt:    post.createdAt,
+            images:       post.images || [],
+            video:        post.video ? { status: post.video.status, playbackUrl: post.video.playbackUrl || '' } : null,
         });
 
         if (videoFile && s3Key) {
@@ -380,6 +383,22 @@ router.post('/posts/:id/vote', async (req, res) => {
             mongoUpdate,
             { new: true }
         );
+
+        await kafkaService.publish('post', {
+            id:           updatedPost.id,
+            title:        updatedPost.title,
+            body:         updatedPost.body,
+            community:    updatedPost.community,
+            authorId:     updatedPost.authorId,
+            author:       updatedPost.author,
+            type:         updatedPost.video ? 'video' : (updatedPost.images?.length ? 'image' : 'text'),
+            upvotes:      updatedPost.upvotes,
+            downvotes:    updatedPost.downvotes,
+            commentCount: updatedPost.commentCount,
+            createdAt:    updatedPost.createdAt,
+            images:       updatedPost.images || [],
+            video:        updatedPost.video ? { status: updatedPost.video.status, playbackUrl: updatedPost.video.playbackUrl || '' } : null,
+        });
 
         res.json({
             id: updatedPost.id,

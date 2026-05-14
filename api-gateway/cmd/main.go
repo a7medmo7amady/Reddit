@@ -106,6 +106,10 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.GET("/posts/:id/status", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/history", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
+	// Public media assets — images and video served directly from video-service
+	r.GET("/assets/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())

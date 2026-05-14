@@ -31,6 +31,17 @@ interface UserPost {
   createdAt: string;
 }
 
+interface UserComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  author: string;
+  body: string;
+  upvotes: number;
+  downvotes: number;
+  createdAt: string;
+}
+
 function formatKarma(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -68,6 +79,8 @@ export default function UserProfilePage() {
   const [followLoading, setFollowLoading] = useState(false);
   const [userPosts, setUserPosts] = useState<UserPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  const [userComments, setUserComments] = useState<UserComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const myUsername = getMyUsername();
   const isOwn = myUsername === username;
@@ -92,11 +105,21 @@ export default function UserProfilePage() {
   useEffect(() => {
     if (tab !== "posts" || !username) return;
     setPostsLoading(true);
-    fetch(`${API_URL}/posts?author=${encodeURIComponent(username as string)}&limit=50`)
+    fetch(`${API_URL}/posts?author=${encodeURIComponent(username as string)}&limit=50`, { cache: 'no-store' })
       .then(r => r.json())
       .then(data => setUserPosts(data.posts || []))
       .catch(() => setUserPosts([]))
       .finally(() => setPostsLoading(false));
+  }, [tab, username]);
+
+  useEffect(() => {
+    if (tab !== "comments" || !username) return;
+    setCommentsLoading(true);
+    fetch(`${API_URL}/comments?author=${encodeURIComponent(username as string)}&limit=50`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => setUserComments(data.comments || []))
+      .catch(() => setUserComments([]))
+      .finally(() => setCommentsLoading(false));
   }, [tab, username]);
 
   const toggleFollow = async () => {
@@ -182,7 +205,6 @@ export default function UserProfilePage() {
         )}
       </div>
 
-      {/* ── profile header ── */}
       <div className={styles.profileHeader}>
         <div className={styles.avatarWrap}>
           {profile.avatar ? (
@@ -284,6 +306,29 @@ export default function UserProfilePage() {
                       <div className={styles.postCardFooter}>
                         <span className={styles.postCardStat}>{score} points</span>
                         <span className={styles.postCardStat}>{post.commentCount ?? 0} comments</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )
+          ) : tab === "comments" ? (
+            commentsLoading ? (
+              <div className={styles.empty}><p>Loading comments...</p></div>
+            ) : userComments.length === 0 ? (
+              <div className={styles.empty}><p>No comments yet</p></div>
+            ) : (
+              <div className={styles.postList}>
+                {userComments.map(comment => {
+                  const score = (comment.upvotes ?? 0) - (comment.downvotes ?? 0);
+                  return (
+                    <Link key={comment.id} href={`/posts/${comment.postId}`} className={styles.postCard}>
+                      <div className={styles.postCardMeta}>
+                        <span className={styles.postCardTime}>{timeAgo(comment.createdAt)}</span>
+                      </div>
+                      <p className={styles.postCardBody} style={{ marginTop: '8px' }}>{comment.body}</p>
+                      <div className={styles.postCardFooter}>
+                        <span className={styles.postCardStat}>{score} points</span>
                       </div>
                     </Link>
                   );

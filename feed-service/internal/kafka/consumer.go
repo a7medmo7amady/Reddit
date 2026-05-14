@@ -15,17 +15,19 @@ import (
 // ── post consumer ─────────────────────────────────────────────────────────────
 
 type PostEvent struct {
-	ID           string `json:"id"`
-	Title        string `json:"title"`
-	Body         string `json:"body"`
-	Community    string `json:"community"`
-	AuthorID     string `json:"authorId"`
-	Author       string `json:"author"`
-	Type         string `json:"type"`
-	Upvotes      int    `json:"upvotes"`
-	Downvotes    int    `json:"downvotes"`
-	CommentCount int    `json:"commentCount"`
-	CreatedAt    string `json:"createdAt"`
+	ID           string        `json:"id"`
+	Title        string        `json:"title"`
+	Body         string        `json:"body"`
+	Community    string        `json:"community"`
+	AuthorID     string        `json:"authorId"`
+	Author       string        `json:"author"`
+	Type         string        `json:"type"`
+	Upvotes      int           `json:"upvotes"`
+	Downvotes    int           `json:"downvotes"`
+	CommentCount int           `json:"commentCount"`
+	CreatedAt    string        `json:"createdAt"`
+	Images       []model.Image `json:"images"`
+	Video        *model.Video  `json:"video"`
 }
 
 func StartPostConsumer(ctx context.Context, brokers []string, tc *cache.TrendingCache, pc *cache.PostCache) {
@@ -47,11 +49,14 @@ func StartPostConsumer(ctx context.Context, brokers []string, tc *cache.Trending
 			Body:         e.Body,
 			Community:    e.Community,
 			Author:       author,
+			Type:         e.Type,
 			Upvotes:      e.Upvotes,
 			Downvotes:    e.Downvotes,
 			Score:        e.Upvotes - e.Downvotes,
 			CommentCount: e.CommentCount,
 			CreatedAt:    e.CreatedAt,
+			Images:       e.Images,
+			Video:        e.Video,
 		}
 
 		if err := pc.Add(ctx, post); err != nil {

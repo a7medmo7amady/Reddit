@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
+import VideoPlayer from "@/components/VideoPlayer";
 import { getToken } from "@/lib/auth";
 import { getMyUsername } from "@/lib/jwt";
 import AuthPopup from "@/components/AuthPopup";
@@ -22,7 +23,7 @@ interface Post {
   score?: number;
   commentCount?: number;
   createdAt: string;
-  images?: { url: string }[];
+  images?: { thumbnail: string; preview: string; full: string }[];
   video?: { playbackUrl?: string; status: string };
 }
 
@@ -213,14 +214,27 @@ export default function PostPage() {
             <div className={styles.imageContainer}>
               {post.images.map((img, i) => (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img key={i} src={img.url} alt="" className={styles.postImage} />
+                <img
+                  key={i}
+                  src={`${API_URL}${img.full || img.preview}`}
+                  alt=""
+                  className={styles.postImage}
+                />
               ))}
             </div>
           )}
 
           {post.video?.playbackUrl && (
             <div className={styles.videoContainer}>
-              <video src={post.video.playbackUrl} controls className={styles.postVideo} />
+              <VideoPlayer
+                src={`${process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088"}${post.video.playbackUrl}`}
+                downloadFilename={`${post.id}.mp4`}
+              />
+            </div>
+          )}
+          {post.video && !post.video.playbackUrl && (
+            <div className={styles.videoProcessing}>
+              ⏳ Video is still processing — check back in a moment.
             </div>
           )}
 
