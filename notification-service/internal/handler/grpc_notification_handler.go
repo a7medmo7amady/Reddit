@@ -24,7 +24,7 @@ func (h *GrpcNotificationHandler) SendNotification(ctx context.Context, req *pb.
 		Title:   req.Title,
 		Message: req.Message,
 		Link:    req.Link,
-		Type:    req.Type,
+		Type:    model.NotificationType(req.Type),
 	}
 
 	err := h.svc.CreateNotification(ctx, n)

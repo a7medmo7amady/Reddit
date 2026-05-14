@@ -98,11 +98,33 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.Any("/login/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/users/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 
-	
+	// Public post reads — no auth required
+	r.GET("/posts/trending", gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts/feed", gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts/community/*path", gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/:id/status", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/:id/history", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
+	// Public media assets — images and video served directly from video-service
+	r.GET("/assets/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 	{
-		protected.Any("/posts/*path", gin.WrapH(proxy.NewSingle(resolve("feed"))))
+		// Post writes — auth required
+		protected.POST("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
+		protected.POST("/posts/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
+		protected.PATCH("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
+		protected.DELETE("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
+		// Comment writes — auth required
+		protected.POST("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
+		protected.POST("/comments/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.Any("/notifications/*path", gin.WrapH(proxy.NewSingle(resolve("notification"))))

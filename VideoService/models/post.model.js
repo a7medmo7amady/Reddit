@@ -41,6 +41,7 @@ const postSchema = new mongoose.Schema({
     title:       { type: String, required: true, minlength: 1, maxlength: 300 },
     community:   { type: String, required: true },
     authorId:    { type: String, default: '' },
+    author:      { type: String, default: '' },
 
     // Type-specific content (can now coexist)
     body:        { type: String, default: '' },
@@ -68,6 +69,8 @@ const postSchema = new mongoose.Schema({
     upvotes:      { type: Number, default: 0 },
     downvotes:    { type: Number, default: 0 },
     commentCount: { type: Number, default: 0 },
+    // Per-user vote tracking: userId → 1 (up) | -1 (down)
+    userVotes:    { type: Map, of: Number, default: {} },
 
     createdAt:   { type: Date, default: Date.now },
     updatedAt:   { type: Date, default: Date.now }
@@ -97,9 +100,11 @@ class PostModel {
         return await Post.find({ deleted: false }).sort({ createdAt: -1 });
     }
 
-    static async findList({ community, dateRange, limit = 10, page = 1 }) {
+    static async findList({ community, author, authorId, dateRange, limit = 10, page = 1 }) {
         const query = { deleted: false };
         if (community) query.community = community;
+        if (author) query.author = author;
+        if (authorId) query.authorId = authorId;
 
         if (dateRange && dateRange !== 'all') {
             const now = new Date();

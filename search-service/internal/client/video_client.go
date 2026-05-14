@@ -6,11 +6,9 @@ import (
 	"log"
 	"os"
 	"search-service/internal/model"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	// videov1 "search-service/pkg/proto/video/v1" // This would be the generated code
 )
 
 type VideoClient interface {

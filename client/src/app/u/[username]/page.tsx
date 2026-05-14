@@ -21,6 +21,28 @@ interface PublicProfile {
   createdAt: string;
 }
 
+interface UserPost {
+  id: string;
+  title: string;
+  body?: string;
+  community: string;
+  upvotes: number;
+  downvotes: number;
+  commentCount: number;
+  createdAt: string;
+}
+
+interface UserComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  author: string;
+  body: string;
+  upvotes: number;
+  downvotes: number;
+  createdAt: string;
+}
+
 function formatKarma(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
   if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
@@ -37,6 +59,18 @@ function accountAge(iso: string): string {
   return `${years} year${years !== 1 ? "s" : ""}`;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
@@ -44,6 +78,10 @@ export default function UserProfilePage() {
   const [tab, setTab] = useState<Tab>("overview");
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [userPosts, setUserPosts] = useState<UserPost[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [userComments, setUserComments] = useState<UserComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   const myUsername = getMyUsername();
   const isOwn = myUsername === username;
@@ -62,6 +100,26 @@ export default function UserProfilePage() {
       .then((data) => data && setProfile(data))
       .catch(() => setNotFound(true));
   }, [username]);
+
+  useEffect(() => {
+    if (tab !== "posts" || !username) return;
+    setPostsLoading(true);
+    fetch(`${API_URL}/posts?author=${encodeURIComponent(username as string)}&limit=50`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => setUserPosts(data.posts || []))
+      .catch(() => setUserPosts([]))
+      .finally(() => setPostsLoading(false));
+  }, [tab, username]);
+
+  useEffect(() => {
+    if (tab !== "comments" || !username) return;
+    setCommentsLoading(true);
+    fetch(`${API_URL}/comments?author=${encodeURIComponent(username as string)}&limit=50`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(data => setUserComments(data.comments || []))
+      .catch(() => setUserComments([]))
+      .finally(() => setCommentsLoading(false));
+  }, [tab, username]);
 
   const toggleFollow = async () => {
     if (!myUsername) return;
@@ -132,7 +190,6 @@ export default function UserProfilePage() {
         )}
       </nav>
 
-      {/* ── banner ── */}
       <div className={styles.banner}>
         {profile.banner ? (
           <Image
@@ -147,7 +204,6 @@ export default function UserProfilePage() {
         )}
       </div>
 
-      {/* ── profile header ── */}
       <div className={styles.profileHeader}>
         <div className={styles.avatarWrap}>
           {profile.avatar ? (
@@ -228,9 +284,61 @@ export default function UserProfilePage() {
       {/* ── content ── */}
       <div className={styles.content}>
         <div className={styles.feed}>
-          <div className={styles.empty}>
-            <p>No {tab} yet</p>
-          </div>
+          {tab === "posts" ? (
+            postsLoading ? (
+              <div className={styles.empty}><p>Loading posts...</p></div>
+            ) : userPosts.length === 0 ? (
+              <div className={styles.empty}><p>No posts yet</p></div>
+            ) : (
+              <div className={styles.postList}>
+                {userPosts.map(post => {
+                  const score = (post.upvotes ?? 0) - (post.downvotes ?? 0);
+                  return (
+                    <Link key={post.id} href={`/posts/${post.id}`} className={styles.postCard}>
+                      <div className={styles.postCardMeta}>
+                        <span className={styles.postCardCommunity}>r/{post.community}</span>
+                        <span className={styles.postCardDot}>•</span>
+                        <span className={styles.postCardTime}>{timeAgo(post.createdAt)}</span>
+                      </div>
+                      <h3 className={styles.postCardTitle}>{post.title}</h3>
+                      {post.body && <p className={styles.postCardBody}>{post.body}</p>}
+                      <div className={styles.postCardFooter}>
+                        <span className={styles.postCardStat}>{score} points</span>
+                        <span className={styles.postCardStat}>{post.commentCount ?? 0} comments</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )
+          ) : tab === "comments" ? (
+            commentsLoading ? (
+              <div className={styles.empty}><p>Loading comments...</p></div>
+            ) : userComments.length === 0 ? (
+              <div className={styles.empty}><p>No comments yet</p></div>
+            ) : (
+              <div className={styles.postList}>
+                {userComments.map(comment => {
+                  const score = (comment.upvotes ?? 0) - (comment.downvotes ?? 0);
+                  return (
+                    <Link key={comment.id} href={`/posts/${comment.postId}`} className={styles.postCard}>
+                      <div className={styles.postCardMeta}>
+                        <span className={styles.postCardTime}>{timeAgo(comment.createdAt)}</span>
+                      </div>
+                      <p className={styles.postCardBody} style={{ marginTop: '8px' }}>{comment.body}</p>
+                      <div className={styles.postCardFooter}>
+                        <span className={styles.postCardStat}>{score} points</span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            <div className={styles.empty}>
+              <p>No {tab} yet</p>
+            </div>
+          )}
         </div>
 
         <aside className={styles.sidebar}>

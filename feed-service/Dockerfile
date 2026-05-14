@@ -9,7 +9,6 @@ FROM alpine:3.20
 WORKDIR /app
 
 COPY --from=builder /app/feed-service .
-COPY --from=builder /app/config ./config
 
 
 

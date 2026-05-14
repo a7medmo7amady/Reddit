@@ -9,6 +9,7 @@ const kafkaService  = require('./services/kafka.service');
 const transcoderService = require('./services/transcoder.service');
 const storageService    = require('./services/storage.service');
 const purgeService  = require('./services/purge.service');
+const seedService   = require('./services/seed.service');
 const PostModel     = require('./models/post.model');
 
 const app  = express();
@@ -39,12 +40,17 @@ async function start() {
             const { postId, s3Key } = payload;
             await PostModel.update(postId, { 'video.status': 'PROCESSING' });
             await kafkaService.publish('video.processing', { postId });
-            await transcoderService.processVideo(postId, s3Key);
+            // Run in background so Kafka consumer isn't blocked and heartbeats continue
+            transcoderService.processVideo(postId, s3Key).catch(err =>
+                console.error(`[Transcoder] postId=${postId} failed:`, err.message)
+            );
         });
 
         await kafkaService.subscribe('video.ready', async () => {});
         await kafkaService.startConsumer();
         console.log('[UploadService] Kafka consumer started.');
+
+        await seedService.seed();
 
         // Start 24h media purge cron
         purgeService.start();

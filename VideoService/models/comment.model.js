@@ -4,6 +4,7 @@ const commentSchema = new mongoose.Schema({
     id:       { type: String, required: true, unique: true },
     postId:   { type: String, required: true, index: true },
     authorId: { type: String, required: true },
+    author:   { type: String, default: '' },
     body:     { type: String, required: true, maxlength: 10000 },
     
     // For nested comments/replies
@@ -41,6 +42,33 @@ class CommentModel {
             
         const total = await Comment.countDocuments(query);
         
+        return {
+            comments,
+            pagination: {
+                total,
+                page,
+                limit,
+                pages: Math.ceil(total / limit)
+            }
+        };
+    }
+
+    static async findList({ postId, author, authorId, limit = 20, page = 1, parentId = null }) {
+        const query = { deleted: false };
+        if (postId) query.postId = postId;
+        if (author) query.author = author;
+        if (authorId) query.authorId = authorId;
+        if (parentId !== undefined) query.parentId = parentId;
+
+        const skip = (page - 1) * limit;
+        
+        const comments = await Comment.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Comment.countDocuments(query);
+
         return {
             comments,
             pagination: {

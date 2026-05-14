@@ -1,5 +1,5 @@
 # Stage 1: Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install protoc and go plugins
 RUN apk add --no-cache protobuf protobuf-dev
@@ -22,10 +22,10 @@ COPY proto ./proto
 COPY notification-service ./notification-service
 
 # Generate proto code
-RUN mkdir -p notification-service/pkg/proto/notification && \
+RUN mkdir -p notification-service/pkg/proto && \
     protoc --proto_path=./proto \
-           --go_out=notification-service/pkg/proto/notification --go_opt=paths=source_relative \
-           --go-grpc_out=notification-service/pkg/proto/notification --go-grpc_opt=paths=source_relative \
+           --go_out=notification-service/pkg/proto --go_opt=paths=source_relative \
+           --go-grpc_out=notification-service/pkg/proto --go-grpc_opt=paths=source_relative \
            ./proto/notification/notification.proto
 
 # Build the application

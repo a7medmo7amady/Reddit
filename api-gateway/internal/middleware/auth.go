@@ -37,7 +37,13 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		c.Request.Header.Set("X-User-Id", claims.UserID)
+		// UserID falls back to JWT "sub" (Subject) if the custom "user_id" claim is absent
+		userID := claims.UserID
+		if userID == "" {
+			userID = claims.Subject
+		}
+		c.Request.Header.Set("X-User-Id", userID)
+		c.Request.Header.Set("X-Username", claims.Username)
 		c.Request.Header.Set("X-Role", claims.Role)
 		c.Next()
 	}
