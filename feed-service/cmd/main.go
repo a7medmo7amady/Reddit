@@ -36,10 +36,6 @@ func main() {
 	}
 
 	tc := cache.NewTrendingCache(rdb)
-	if err := tc.Seed(ctx); err != nil {
-		log.Fatalf("seed trending cache: %v", err)
-	}
-	log.Println("Trending posts seeded into Redis")
 
 	pc := cache.NewPostCache(rdb)
 	bc := cache.NewBanCache(rdb)
@@ -58,7 +54,7 @@ func main() {
 		// Warm up trending communities from VideoService on startup
 		go func() {
 			for _, community := range []string{"programming", "golang", "python", "gaming"} {
-				if err := videoClient.SyncCommunityPosts(ctx, community, pc); err != nil {
+				if err := videoClient.SyncCommunityPosts(ctx, community, pc, tc); err != nil {
 					log.Printf("[gRPC] sync r/%s: %v", community, err)
 				}
 			}

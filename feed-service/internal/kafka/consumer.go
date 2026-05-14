@@ -20,6 +20,7 @@ type PostEvent struct {
 	Body         string `json:"body"`
 	Community    string `json:"community"`
 	AuthorID     string `json:"authorId"`
+	Author       string `json:"author"`
 	Type         string `json:"type"`
 	Upvotes      int    `json:"upvotes"`
 	Downvotes    int    `json:"downvotes"`
@@ -34,17 +35,32 @@ func StartPostConsumer(ctx context.Context, brokers []string, tc *cache.Trending
 		if err := json.Unmarshal(raw, &e); err != nil {
 			return err
 		}
+
+		author := e.Author
+		if author == "" {
+			author = e.AuthorID
+		}
+
 		post := model.Post{
 			StringID:     e.ID,
 			Title:        e.Title,
 			Body:         e.Body,
 			Community:    e.Community,
-			Author:       e.AuthorID,
+			Author:       author,
+			Upvotes:      e.Upvotes,
+			Downvotes:    e.Downvotes,
 			Score:        e.Upvotes - e.Downvotes,
 			CommentCount: e.CommentCount,
 			CreatedAt:    e.CreatedAt,
 		}
-		return pc.Add(ctx, post)
+
+		if err := pc.Add(ctx, post); err != nil {
+			log.Printf("[PostConsumer] PostCache.Add error: %v", err)
+		}
+		if err := tc.Add(ctx, post); err != nil {
+			log.Printf("[PostConsumer] TrendingCache.Add error: %v", err)
+		}
+		return nil
 	})
 }
 

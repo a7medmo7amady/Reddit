@@ -9,9 +9,9 @@ public class BanEventPublisher {
 
     private static final String TOPIC = "community.ban";
 
-    private final KafkaTemplate<String, CommunityBanEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    public BanEventPublisher(KafkaTemplate<String, CommunityBanEvent> kafkaTemplate) {
+    public BanEventPublisher(KafkaTemplate<String, Object> kafkaTemplate) {
         this.kafkaTemplate = kafkaTemplate;
     }
 

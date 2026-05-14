@@ -23,8 +23,8 @@ func NewVideoClient(addr string) (*VideoClient, error) {
 	return &VideoClient{client: videopb.NewVideoServiceClient(conn)}, nil
 }
 
-// SyncCommunityPosts fetches posts from VideoService and writes them into the PostCache.
-func (v *VideoClient) SyncCommunityPosts(ctx context.Context, community string, pc *cache.PostCache) error {
+// SyncCommunityPosts fetches posts from VideoService and writes them into PostCache and TrendingCache.
+func (v *VideoClient) SyncCommunityPosts(ctx context.Context, community string, pc *cache.PostCache, tc *cache.TrendingCache) error {
 	resp, err := v.client.ListPosts(ctx, &videopb.ListPostsRequest{
 		Community: community,
 		Limit:     50,
@@ -43,7 +43,10 @@ func (v *VideoClient) SyncCommunityPosts(ctx context.Context, community string, 
 			Author:    p.AuthorId,
 		}
 		if err := pc.Add(ctx, post); err != nil {
-			log.Printf("[VideoClient] cache write error for post %s: %v", p.Id, err)
+			log.Printf("[VideoClient] PostCache write error for post %s: %v", p.Id, err)
+		}
+		if err := tc.Add(ctx, post); err != nil {
+			log.Printf("[VideoClient] TrendingCache write error for post %s: %v", p.Id, err)
 		}
 	}
 	log.Printf("[VideoClient] synced %d posts for r/%s", len(resp.Posts), community)

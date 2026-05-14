@@ -1,0 +1,269 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.popup {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.closeButton {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--text-muted, #7c7c7c);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.closeButton:hover {
+  background-color: var(--bg-hover, #f0f0f0);
+}
+
+.header {
+  padding: 24px 24px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.redditLogo {
+  height: 40px;
+  width: auto;
+}
+
+.authCard {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.authCard h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-main, #0f1419);
+  margin: 0;
+}
+
+.policyText {
+  font-size: 0.875rem;
+  color: var(--text-muted, #536471);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.policyText button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-color, #ff4500);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.policyText button:hover {
+  text-decoration: underline;
+}
+
+.oauthStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.oauthStack a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 48px;
+  border: 1px solid var(--border-color, #cfd9de);
+  border-radius: 24px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-main, #0f1419);
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.oauthStack a:hover {
+  background-color: var(--bg-hover, #f7f9f9);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--text-muted, #536471);
+  font-size: 0.875rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-color, #cfd9de);
+}
+
+.divider span {
+  padding: 0 16px;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.fields label {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.fields input {
+  height: 56px;
+  padding: 24px 12px 8px;
+  border: 1px solid var(--border-color, #cfd9de);
+  border-radius: 4px;
+  font-size: 1rem;
+  color: var(--text-main, #0f1419);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.fields input:focus {
+  outline: none;
+  border-color: var(--primary-color, #ff4500);
+  box-shadow: 0 0 0 1px var(--primary-color, #ff4500);
+}
+
+.fields input + span {
+  position: absolute;
+  left: 12px;
+  top: 18px;
+  font-size: 1rem;
+  color: var(--text-muted, #536471);
+  transition: all 0.2s;
+  pointer-events: none;
+}
+
+.fields input:focus + span,
+.fields input:not(:placeholder-shown) + span {
+  top: 8px;
+  font-size: 0.75rem;
+  color: var(--primary-color, #ff4500);
+}
+
+.fields input:not(:focus):not(:placeholder-shown) + span {
+  color: var(--text-muted, #536471);
+}
+
+.passwordField button {
+  position: absolute;
+  right: 12px;
+  top: 18px;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main, #0f1419);
+  cursor: pointer;
+}
+
+.passwordField button:hover {
+  text-decoration: underline;
+}
+
+.accountLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.accountLinks button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-color, #ff4500);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.accountLinks button:hover {
+  text-decoration: underline;
+}
+
+.accountLinks p {
+  margin: 0;
+  color: var(--text-muted, #536471);
+}
+
+.submitButton {
+  height: 48px;
+  background-color: var(--primary-color, #ff4500);
+  color: white;
+  border: none;
+  border-radius: 24px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 8px;
+}
+
+.submitButton:hover:not(:disabled) {
+  background-color: #e03d00;
+}
+
+.submitButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.errorText {
+  color: #ea0027;
+  font-size: 0.875rem;
+  margin: 0;
+}

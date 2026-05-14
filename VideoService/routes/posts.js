@@ -66,6 +66,7 @@ router.post('/posts', uploadFields, async (req, res) => {
 
         const postId = uuidv4();
         const authorId = req.headers['x-user-id'] || '';
+        const author   = req.headers['x-username'] || '';
 
         if (authorId && await banService.isBanned(authorId, community)) {
             return res.status(403).json({ error: 'You are banned from this community.' });
@@ -75,6 +76,7 @@ router.post('/posts', uploadFields, async (req, res) => {
             title,
             community,
             authorId,
+            author,
             body:    body    || '',
             url:     url     || '',
             flair:   flair   || '',
@@ -121,6 +123,7 @@ router.post('/posts', uploadFields, async (req, res) => {
             body:         post.body       || '',
             community:    post.community,
             authorId:     post.authorId,
+            author:       post.author,
             type:         videoFile ? 'video' : (req.files?.images?.length ? 'image' : (url ? 'link' : 'text')),
             upvotes:      0,
             downvotes:    0,
@@ -170,12 +173,14 @@ router.post('/posts', uploadFields, async (req, res) => {
 // ═════════════════════════════════════════════════════════════════════════════
 router.get('/posts', async (req, res) => {
     try {
-        const { community, dateRange, limit, page } = req.query;
-        
+        const { community, author, authorId, dateRange, limit, page } = req.query;
+
         const result = await PostModel.findList({
             community,
+            author,
+            authorId,
             dateRange,
-            limit: parseInt(limit) || 10,
+            limit: parseInt(limit) || 20,
             page:  parseInt(page) || 1
         });
 
@@ -322,23 +327,57 @@ router.delete('/posts/:id', async (req, res) => {
 
 router.post('/posts/:id/vote', async (req, res) => {
     try {
-        const { direction } = req.body; // 1 for upvote, -1 for downvote, 0 to clear
+        const { direction } = req.body; // 1 upvote | -1 downvote | 0 clear
         const postId = req.params.id;
+        const userId = req.headers['x-user-id'];
 
         if (![1, -1, 0].includes(direction)) {
             return res.status(400).json({ error: 'Invalid vote direction. Use 1, -1, or 0.' });
         }
-
         const post = await PostModel.findById(postId);
         if (!post) return res.status(404).json({ error: 'Post not found.' });
 
-        const update = {};
-        if (direction === 1) update.$inc = { upvotes: 1 };
-        else if (direction === -1) update.$inc = { downvotes: 1 };
+        let inc = {};
+        let mongoUpdate = {};
+
+        if (userId) {
+            // Per-user tracked voting (prevents double votes)
+            const prev = post.userVotes?.get(userId) ?? 0;
+            if (prev === direction) {
+                return res.json({
+                    id: post.id,
+                    upvotes: post.upvotes,
+                    downvotes: post.downvotes,
+                    score: post.upvotes - post.downvotes,
+                    userVote: prev,
+                });
+            }
+            // Undo previous
+            if (prev === 1)  inc.upvotes   = (inc.upvotes   || 0) - 1;
+            if (prev === -1) inc.downvotes  = (inc.downvotes  || 0) - 1;
+            // Apply new
+            if (direction === 1)  inc.upvotes   = (inc.upvotes   || 0) + 1;
+            if (direction === -1) inc.downvotes  = (inc.downvotes  || 0) + 1;
+
+            mongoUpdate = { $inc: inc };
+            if (direction === 0) {
+                mongoUpdate.$unset = { [`userVotes.${userId}`]: '' };
+            } else {
+                mongoUpdate.$set = { [`userVotes.${userId}`]: direction };
+            }
+        } else {
+            // Fallback: simple increment without per-user tracking
+            if (direction === 1)  mongoUpdate.$inc = { upvotes: 1 };
+            if (direction === -1) mongoUpdate.$inc = { downvotes: 1 };
+        }
+
+        if (!mongoUpdate.$inc && !mongoUpdate.$set && !mongoUpdate.$unset) {
+            return res.json({ id: post.id, upvotes: post.upvotes, downvotes: post.downvotes, score: post.upvotes - post.downvotes, userVote: 0 });
+        }
 
         const updatedPost = await mongoose.model('Post').findOneAndUpdate(
             { id: postId },
-            update,
+            mongoUpdate,
             { new: true }
         );
 
@@ -346,7 +385,8 @@ router.post('/posts/:id/vote', async (req, res) => {
             id: updatedPost.id,
             upvotes: updatedPost.upvotes,
             downvotes: updatedPost.downvotes,
-            score: updatedPost.upvotes - updatedPost.downvotes
+            score: updatedPost.upvotes - updatedPost.downvotes,
+            userVote: direction,
         });
     } catch (error) {
         res.status(500).json({ error: error.message });
