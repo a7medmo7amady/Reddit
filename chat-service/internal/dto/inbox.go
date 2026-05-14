@@ -5,6 +5,7 @@ import "time"
 type InboxItem struct {
 	ConversationID      string        `json:"conversationId"`
 	Type                string        `json:"type"`
+	Name                string        `json:"name,omitempty"`
 	CommunityID         string        `json:"communityId,omitempty"`
 	OtherParticipantIDs []string      `json:"otherParticipantIds,omitempty"`
 	LastMessage         *InboxMessage `json:"lastMessage,omitempty"`

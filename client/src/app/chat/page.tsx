@@ -8,14 +8,18 @@ import {
   ChatUser,
   Conversation,
   InboxItem,
+  addGroupParticipant,
   createDirectConversation,
+  createGroupConversation,
   getConversationMessages,
   getInbox,
-  getOrCreateCommunityRoom,
   getUserById,
   getUserByUsername,
   hideConversation,
+  leaveGroupConversation,
   markConversationRead,
+  removeGroupParticipant,
+  renameGroupConversation,
   sendChatMessage,
   setConversationMuted,
 } from "@/lib/chat";
@@ -53,14 +57,18 @@ function formatTime(value?: string): string {
 }
 
 function formatDate(value?: string): string {
-  if (!value) return "No activity yet";
-  const date = new Date(value);
-  const today = new Date();
-  if (date.toDateString() === today.toDateString()) return formatTime(value);
+	if (!value) return "No activity yet";
+	const date = new Date(value);
+	const today = new Date();
+	if (date.toDateString() === today.toDateString()) return formatTime(value);
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
-  }).format(date);
+	}).format(date);
+}
+
+function currentTimeMs(): number {
+	return Date.now();
 }
 
 function upsertMessage(messages: ChatMessage[], message: ChatMessage) {
@@ -78,6 +86,8 @@ function dedupeInbox(items: InboxItem[]): InboxItem[] {
     const key =
       item.type === "direct"
         ? `direct:${[...(item.otherParticipantIds ?? [])].sort().join(",")}`
+        : item.type === "group"
+          ? `group:${item.conversationId}`
         : `${item.type}:${item.communityId ?? item.conversationId}`;
 
     if (seen.has(key)) continue;
@@ -96,17 +106,24 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [newUsername, setNewUsername] = useState("");
-  const [newCommunity, setNewCommunity] = useState("");
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [isChatOptionsOpen, setIsChatOptionsOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [groupUsername, setGroupUsername] = useState("");
+  const [memberUsername, setMemberUsername] = useState("");
+  const [groupParticipants, setGroupParticipants] = useState<ChatUser[]>([]);
   const [isLoadingInbox, setIsLoadingInbox] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [, setConnectionState] = useState<ConnectionState>("connecting");
-  const [typingUsers, setTypingUsers] = useState<Record<string, TypingUser[]>>(
-    {}
-  );
-  const [currentUser, setCurrentUser] = useState<{
+	const [, setConnectionState] = useState<ConnectionState>("connecting");
+	const [typingUsers, setTypingUsers] = useState<Record<string, TypingUser[]>>(
+		{}
+	);
+	const [nowMs, setNowMs] = useState(0);
+	const [currentUser, setCurrentUser] = useState<{
     id: string | null;
     username: string | null;
   }>({ id: null, username: null });
@@ -140,26 +157,31 @@ export default function ChatPage() {
   const activeProfileHref = activeOtherParticipantId
     ? profileHrefForUserId(activeOtherParticipantId)
     : null;
+  const activeGroupParticipantIds =
+    activeInboxItem?.type === "group" ? activeInboxItem.otherParticipantIds ?? [] : [];
 
   useEffect(() => {
     activeConversationRef.current = activeConversationId;
+    queueMicrotask(() => setIsChatOptionsOpen(false));
   }, [activeConversationId]);
 
-  useEffect(() => {
-    realtimeHandlerRef.current = handleRealtimeEvent;
-  });
-
-  const activeTypingUsers = useMemo(() => {
-    if (!activeConversationId) return [];
-    const now = Date.now();
-    return (typingUsers[activeConversationId] ?? []).filter(
-      (item) => item.expiresAt > now && item.userId !== myUserId
-    );
-  }, [activeConversationId, myUserId, typingUsers]);
+	const activeTypingUsers = useMemo(() => {
+		if (!activeConversationId) return [];
+		return (typingUsers[activeConversationId] ?? []).filter(
+			(item) => item.expiresAt > nowMs && item.userId !== myUserId
+		);
+	}, [activeConversationId, myUserId, nowMs, typingUsers]);
 
   function conversationTitle(item: InboxItem): string {
     if (item.type === "community") {
       return item.communityId ? `r/${item.communityId}` : "Community chat";
+    }
+    if (item.type === "group") {
+      if (item.name) return item.name;
+      const labels = (item.otherParticipantIds ?? [])
+        .map((userId) => participantLabel(userId))
+        .filter(Boolean);
+      return labels.length > 0 ? labels.join(", ") : "Group chat";
     }
 
     const otherParticipantId = item.otherParticipantIds?.[0];
@@ -234,6 +256,14 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, activeTypingUsers.length]);
 
+	useEffect(() => {
+		queueMicrotask(() => {
+			setGroupNameDraft(
+				activeInboxItem?.type === "group" ? activeInboxItem.name ?? "" : ""
+			);
+		});
+	}, [activeInboxItem?.conversationId, activeInboxItem?.name, activeInboxItem?.type]);
+
   useEffect(() => {
     const profileIds = [
       ...inbox.flatMap((item) => item.otherParticipantIds ?? []),
@@ -271,10 +301,11 @@ export default function ChatPage() {
     };
   }, [inbox, myUserId, profilesById, visibleMessages]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      const now = Date.now();
-      setTypingUsers((current) => {
+	useEffect(() => {
+		const interval = window.setInterval(() => {
+			const now = currentTimeMs();
+			setNowMs(now);
+			setTypingUsers((current) => {
         const next: Record<string, TypingUser[]> = {};
         for (const [conversationId, users] of Object.entries(current)) {
           const active = users.filter((user) => user.expiresAt > now);
@@ -352,11 +383,11 @@ export default function ChatPage() {
       payload.type === "chat.typing" &&
       payload.conversationId &&
       payload.userId
-    ) {
-      const expiresAt = payload.expiresAt
-        ? new Date(payload.expiresAt).getTime()
-        : Date.now() + 5000;
-      setTypingUsers((current) => {
+		) {
+			const expiresAt = payload.expiresAt
+				? new Date(payload.expiresAt).getTime()
+				: currentTimeMs() + 5000;
+			setTypingUsers((current) => {
         const users = current[payload.conversationId as string] ?? [];
         const withoutUser = users.filter((user) => user.userId !== payload.userId);
         return {
@@ -367,10 +398,14 @@ export default function ChatPage() {
           ],
         };
       });
-    }
-  }
+		}
+	}
 
-  async function refreshInbox() {
+	useEffect(() => {
+		realtimeHandlerRef.current = handleRealtimeEvent;
+	});
+
+	async function refreshInbox() {
     try {
       const items = await getInbox();
       const deduped = dedupeInbox(items);
@@ -406,20 +441,56 @@ export default function ChatPage() {
     }
   }
 
-  async function handleCreateCommunityRoom(event: FormEvent<HTMLFormElement>) {
+  async function handleAddGroupParticipant(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const communityId = newCommunity.trim().replace(/^r\//i, "");
-    if (!communityId || isCreatingConversation) return;
+    const username = groupUsername.trim().replace(/^u\//i, "");
+    if (!username || isCreatingConversation) return;
 
     setError(null);
     setIsCreatingConversation(true);
     try {
-      const conversation = await getOrCreateCommunityRoom(communityId);
+      const participant = await getUserByUsername(username);
+      if (String(participant.id) === myUserId) {
+        setError("You are already in the group chat");
+        return;
+      }
+      if (groupParticipants.some((item) => item.id === participant.id)) {
+        setError("That user is already added");
+        return;
+      }
+      setProfilesById((current) => ({
+        ...current,
+        [String(participant.id)]: participant,
+      }));
+      setGroupParticipants((current) => [...current, participant]);
+      setGroupUsername("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add user");
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  }
+
+  async function handleCreateGroupConversation() {
+    if (groupParticipants.length < 2 || !groupName.trim() || isCreatingConversation) {
+      return;
+    }
+
+    setError(null);
+    setIsCreatingConversation(true);
+    try {
+      const conversation = await createGroupConversation(
+        groupParticipants.map((participant) => String(participant.id)),
+        groupName
+      );
       await refreshInbox();
       setActiveConversationId(conversation.id);
-      setNewCommunity("");
+      setGroupName("");
+      setGroupParticipants([]);
+      setGroupUsername("");
+      setIsGroupModalOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not open community chat");
+      setError(err instanceof Error ? err.message : "Could not create group chat");
     } finally {
       setIsCreatingConversation(false);
     }
@@ -474,6 +545,7 @@ export default function ChatPage() {
     if (!activeConversationId) return;
 
     const conversationId = activeConversationId;
+    setIsChatOptionsOpen(false);
     const remainingInbox = inbox.filter(
       (item) => item.conversationId !== conversationId
     );
@@ -487,6 +559,134 @@ export default function ChatPage() {
       refreshInbox();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete chat");
+      refreshInbox();
+    }
+  }
+
+  async function handleRenameGroupConversation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeConversationId || !activeInboxItem || activeInboxItem.type !== "group") {
+      return;
+    }
+
+    const name = groupNameDraft.trim();
+    if (!name) return;
+
+    setError(null);
+    setInbox((current) =>
+      current.map((item) =>
+        item.conversationId === activeConversationId ? { ...item, name } : item
+      )
+    );
+
+    try {
+      await renameGroupConversation(activeConversationId, name);
+      refreshInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not rename group");
+      refreshInbox();
+    }
+  }
+
+  async function handleRemoveGroupParticipant(participantId: string) {
+    if (!activeConversationId || !activeInboxItem || activeInboxItem.type !== "group") {
+      return;
+    }
+
+    setError(null);
+    setInbox((current) =>
+      current.map((item) =>
+        item.conversationId === activeConversationId
+          ? {
+              ...item,
+              otherParticipantIds: item.otherParticipantIds?.filter(
+                (id) => id !== participantId
+              ),
+            }
+          : item
+      )
+    );
+
+    try {
+      await removeGroupParticipant(activeConversationId, participantId);
+      refreshInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not remove member");
+      refreshInbox();
+    }
+  }
+
+  async function handleAddExistingGroupParticipant(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeConversationId || !activeInboxItem || activeInboxItem.type !== "group") {
+      return;
+    }
+
+    const username = memberUsername.trim().replace(/^u\//i, "");
+    if (!username || isCreatingConversation) return;
+
+    setError(null);
+    setIsCreatingConversation(true);
+    try {
+      const participant = await getUserByUsername(username);
+      const participantId = String(participant.id);
+      if (participantId === myUserId) {
+        setError("You are already in the group chat");
+        return;
+      }
+      if (activeGroupParticipantIds.includes(participantId)) {
+        setError("That user is already in the group chat");
+        return;
+      }
+
+      await addGroupParticipant(activeConversationId, participantId);
+      setProfilesById((current) => ({
+        ...current,
+        [participantId]: participant,
+      }));
+      setInbox((current) =>
+        current.map((item) =>
+          item.conversationId === activeConversationId
+            ? {
+                ...item,
+                otherParticipantIds: [
+                  ...(item.otherParticipantIds ?? []),
+                  participantId,
+                ],
+              }
+            : item
+        )
+      );
+      setMemberUsername("");
+      refreshInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add member");
+      refreshInbox();
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  }
+
+  async function handleLeaveGroupConversation() {
+    if (!activeConversationId || !activeInboxItem || activeInboxItem.type !== "group") {
+      return;
+    }
+
+    const conversationId = activeConversationId;
+    setIsChatOptionsOpen(false);
+    const remainingInbox = inbox.filter(
+      (item) => item.conversationId !== conversationId
+    );
+    setInbox(remainingInbox);
+    setActiveConversationId(remainingInbox[0]?.conversationId ?? null);
+    setMessages([]);
+    setError(null);
+
+    try {
+      await leaveGroupConversation(conversationId);
+      refreshInbox();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not leave group");
       refreshInbox();
     }
   }
@@ -566,17 +766,16 @@ export default function ChatPage() {
             </button>
           </form>
 
-          <form className={styles.newChatForm} onSubmit={handleCreateCommunityRoom}>
-            <input
-              value={newCommunity}
-              onChange={(event) => setNewCommunity(event.target.value)}
-              placeholder="Community"
-              aria-label="Community"
-            />
-            <button type="submit" disabled={isCreatingConversation}>
-              Room
-            </button>
-          </form>
+          <button
+            type="button"
+            className={styles.groupChatButton}
+            onClick={() => {
+              setError(null);
+              setIsGroupModalOpen(true);
+            }}
+          >
+            Create group chat
+          </button>
 
           {error && <p className={styles.errorText}>{error}</p>}
 
@@ -597,7 +796,11 @@ export default function ChatPage() {
                   onClick={() => setActiveConversationId(item.conversationId)}
                 >
                   <span className={styles.avatar}>
-                    {item.type === "community" ? "r/" : "u/"}
+                    {item.type === "group"
+                      ? "gc"
+                      : item.type === "community"
+                        ? "r/"
+                        : "u/"}
                   </span>
                   <span className={styles.inboxText}>
                     <span className={styles.inboxTitle}>
@@ -630,7 +833,11 @@ export default function ChatPage() {
                   </Link>
                 ) : (
                   <div className={styles.avatarLarge}>
-                    {activeInboxItem?.type === "community" ? "r/" : "u/"}
+                    {activeInboxItem?.type === "group"
+                      ? "gc"
+                      : activeInboxItem?.type === "community"
+                        ? "r/"
+                        : "u/"}
                   </div>
                 )}
                 <div className={styles.chatHeaderText}>
@@ -647,15 +854,19 @@ export default function ChatPage() {
                   </p>
                 </div>
                 <div className={styles.chatActions}>
-                  <button type="button" onClick={handleToggleMute}>
-                    {activeInboxItem?.muted ? "Unmute" : "Mute"}
-                  </button>
                   <button
                     type="button"
-                    className={styles.dangerButton}
-                    onClick={handleDeleteConversation}
+                    className={styles.optionsButton}
+                    onClick={() => {
+                      setError(null);
+                      setIsChatOptionsOpen(true);
+                    }}
+                    aria-label="Open chat options"
+                    title="Chat options"
                   >
-                    Delete
+                    <span aria-hidden="true" />
+                    <span aria-hidden="true" />
+                    <span aria-hidden="true" />
                   </button>
                 </div>
               </header>
@@ -752,6 +963,220 @@ export default function ChatPage() {
           )}
         </section>
       </div>
+
+      {isGroupModalOpen && (
+        <div className={styles.modalBackdrop} role="presentation">
+          <section
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="group-chat-title"
+          >
+            <header className={styles.modalHeader}>
+              <h2 id="group-chat-title">Create group chat</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGroupModalOpen(false);
+                  setGroupName("");
+                  setGroupUsername("");
+                  setGroupParticipants([]);
+                }}
+                aria-label="Close group chat dialog"
+              >
+                Close
+              </button>
+            </header>
+
+            <form
+              className={styles.groupUserForm}
+              onSubmit={handleAddGroupParticipant}
+            >
+              <input
+                value={groupName}
+                onChange={(event) => setGroupName(event.target.value)}
+                placeholder="Group name"
+                aria-label="Group name"
+                maxLength={80}
+              />
+              <input
+                value={groupUsername}
+                onChange={(event) => setGroupUsername(event.target.value)}
+                placeholder="Username"
+                aria-label="Username to add"
+              />
+              <button type="submit" disabled={isCreatingConversation}>
+                Add
+              </button>
+            </form>
+
+            <div className={styles.selectedUsers}>
+              {groupParticipants.length === 0 ? (
+                <p>Add at least two other users.</p>
+              ) : (
+                groupParticipants.map((participant) => (
+                  <span key={participant.id} className={styles.userChip}>
+                    {participant.displayName || participant.username}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setGroupParticipants((current) =>
+                          current.filter((item) => item.id !== participant.id)
+                        )
+                      }
+                      aria-label={`Remove ${participant.username}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+
+            <footer className={styles.modalActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGroupModalOpen(false);
+                  setGroupName("");
+                  setGroupUsername("");
+                  setGroupParticipants([]);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateGroupConversation}
+                disabled={
+                  groupParticipants.length < 2 ||
+                  !groupName.trim() ||
+                  isCreatingConversation
+                }
+              >
+                Create
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {isChatOptionsOpen && activeInboxItem && activeConversationId && (
+        <div className={styles.modalBackdrop} role="presentation">
+          <section
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="chat-options-title"
+          >
+            <header className={styles.modalHeader}>
+              <h2 id="chat-options-title">Chat options</h2>
+              <button
+                type="button"
+                onClick={() => setIsChatOptionsOpen(false)}
+                aria-label="Close chat options"
+              >
+                Close
+              </button>
+            </header>
+
+            {activeInboxItem.type === "group" && (
+              <section className={styles.optionSection}>
+                <h3>Group name</h3>
+                <form
+                  className={styles.groupNameForm}
+                  onSubmit={handleRenameGroupConversation}
+                >
+                  <input
+                    value={groupNameDraft}
+                    onChange={(event) => setGroupNameDraft(event.target.value)}
+                    placeholder="Group name"
+                    aria-label="Group name"
+                    maxLength={80}
+                  />
+                  <button type="submit" disabled={!groupNameDraft.trim()}>
+                    Save
+                  </button>
+                </form>
+              </section>
+            )}
+
+            {activeInboxItem.type === "group" && (
+              <section className={styles.optionSection}>
+                <h3>Members</h3>
+                <form
+                  className={styles.addMemberForm}
+                  onSubmit={handleAddExistingGroupParticipant}
+                >
+                  <input
+                    value={memberUsername}
+                    onChange={(event) => setMemberUsername(event.target.value)}
+                    placeholder="Username"
+                    aria-label="Username to add to group"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!memberUsername.trim() || isCreatingConversation}
+                  >
+                    Add
+                  </button>
+                </form>
+                <div className={styles.memberList}>
+                  <span className={styles.memberRow}>
+                    <span>{myUsername ? `u/${myUsername}` : "You"}</span>
+                    <span className={styles.memberMeta}>you</span>
+                  </span>
+                  {activeGroupParticipantIds.map((participantId) => (
+                    <span key={participantId} className={styles.memberRow}>
+                      <Link href={profileHrefForUserId(participantId)}>
+                        {participantLabel(participantId)}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGroupParticipant(participantId)}
+                        aria-label={`Remove ${participantLabel(participantId)}`}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className={styles.optionSection}>
+              <h3>Notifications</h3>
+              <button
+                type="button"
+                className={styles.optionButton}
+                onClick={handleToggleMute}
+              >
+                {activeInboxItem.muted ? "Unmute chat" : "Mute chat"}
+              </button>
+            </section>
+
+            <section className={styles.optionSection}>
+              <h3>Danger zone</h3>
+              {activeInboxItem.type === "group" && (
+                <button
+                  type="button"
+                  className={styles.optionButton}
+                  onClick={handleLeaveGroupConversation}
+                >
+                  Leave group chat
+                </button>
+              )}
+              <button
+                type="button"
+                className={`${styles.optionButton} ${styles.dangerOption}`}
+                onClick={handleDeleteConversation}
+              >
+                Delete chat for me
+              </button>
+            </section>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

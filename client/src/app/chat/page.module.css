@@ -165,6 +165,11 @@
 }
 
 .newChatForm button,
+.groupChatButton,
+.groupUserForm button,
+.addMemberForm button,
+.optionButton,
+.modalActions button,
 .composer button {
   height: 38px;
   border: 0;
@@ -179,15 +184,29 @@
 }
 
 .newChatForm button:hover,
+.groupChatButton:hover,
+.groupUserForm button:hover,
+.addMemberForm button:hover,
+.optionButton:hover,
+.modalActions button:hover,
 .composer button:hover {
   background: #e03d00;
 }
 
 .newChatForm button:disabled,
+.groupUserForm button:disabled,
+.addMemberForm button:disabled,
+.optionButton:disabled,
+.modalActions button:disabled,
 .composer button:disabled {
   background: #343536;
   color: #818384;
   cursor: not-allowed;
+}
+
+.groupChatButton {
+  width: calc(100% - 24px);
+  margin: 12px;
 }
 
 .errorText,
@@ -307,8 +326,8 @@
 .chatPanel {
   height: 100%;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -353,6 +372,20 @@
   background: #1a282d;
 }
 
+.chatActions .optionsButton {
+  width: 34px;
+  justify-content: center;
+  gap: 3px;
+  padding: 0;
+}
+
+.optionsButton span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .chatActions .dangerButton {
   border-color: #6b2c20;
   color: #ff8a65;
@@ -362,8 +395,60 @@
   background: rgba(255, 69, 0, 0.12);
 }
 
+.groupManageBar {
+  display: grid;
+  gap: 10px;
+  border-bottom: 1px solid #253034;
+  background: #111719;
+  padding: 10px 12px;
+}
+
+.groupNameForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.groupNameForm input {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid #343536;
+  border-radius: 999px;
+  background: #0f1416;
+  color: #eef3f5;
+  font: inherit;
+  outline: none;
+  padding: 0 12px;
+}
+
+.groupNameForm button {
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: #ff4500;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 0 12px;
+}
+
+.groupNameForm button:disabled {
+  background: #343536;
+  color: #818384;
+  cursor: not-allowed;
+}
+
+.groupMemberList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .messages {
   min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -507,6 +592,223 @@
 
 .composer textarea:focus {
   border-color: #d7dadc;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.62);
+  padding: 20px;
+}
+
+.modal {
+  width: min(100%, 520px);
+  max-height: calc(100vh - 40px);
+  display: grid;
+  gap: 14px;
+  border: 1px solid #343536;
+  border-radius: 8px;
+  background: #161b1d;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  padding: 16px;
+  overflow: auto;
+}
+
+.modalHeader,
+.modalActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.modalHeader h2 {
+  color: #eef3f5;
+  font-size: 1rem;
+}
+
+.modalHeader button,
+.modalActions button:first-child {
+  border: 1px solid #343536;
+  border-radius: 999px;
+  background: transparent;
+  color: #d7dadc;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.modalHeader button:hover,
+.modalActions button:first-child:hover {
+  background: #1a282d;
+}
+
+.groupUserForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.groupUserForm input:first-child {
+  grid-column: 1 / -1;
+}
+
+.groupUserForm input {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #343536;
+  border-radius: 999px;
+  background: #0f1416;
+  color: #eef3f5;
+  font: inherit;
+  outline: none;
+  padding: 0 14px;
+}
+
+.optionSection {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #253034;
+  padding-top: 14px;
+}
+
+.optionSection h3 {
+  color: #eef3f5;
+  font-size: 0.88rem;
+}
+
+.optionButton {
+  width: fit-content;
+}
+
+.addMemberForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.addMemberForm input {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid #343536;
+  border-radius: 999px;
+  background: #0f1416;
+  color: #eef3f5;
+  font: inherit;
+  outline: none;
+  padding: 0 14px;
+}
+
+.addMemberForm input:focus {
+  border-color: #d7dadc;
+}
+
+.dangerOption {
+  background: #7a1f12;
+}
+
+.dangerOption:hover {
+  background: #992914;
+}
+
+.memberList {
+  display: grid;
+  gap: 8px;
+}
+
+.memberRow {
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #253034;
+  border-radius: 6px;
+  background: #0f1416;
+  padding: 8px 10px;
+}
+
+.memberRow a,
+.memberRow span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  color: #eef3f5;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberRow a:hover {
+  color: #ff4500;
+}
+
+.memberRow button {
+  height: 30px;
+  border: 1px solid #6b2c20;
+  border-radius: 999px;
+  background: transparent;
+  color: #ff8a65;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
+.memberRow button:hover {
+  background: rgba(255, 69, 0, 0.12);
+}
+
+.memberMeta {
+  color: #818384;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.selectedUsers {
+  min-height: 92px;
+  display: flex;
+  align-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 1px solid #253034;
+  border-radius: 6px;
+  background: #0f1416;
+  padding: 10px;
+}
+
+.selectedUsers p {
+  color: #818384;
+  font-size: 0.88rem;
+}
+
+.userChip {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  background: #1a282d;
+  color: #eef3f5;
+  font-size: 0.84rem;
+  font-weight: 800;
+  padding: 0 8px 0 12px;
+}
+
+.userChip button {
+  border: 0;
+  background: transparent;
+  color: #d7dadc;
+  cursor: pointer;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 @keyframes typingPulse {

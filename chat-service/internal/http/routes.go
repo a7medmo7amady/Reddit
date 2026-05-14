@@ -39,6 +39,11 @@ func RegisterRoutes(
 	chat.POST("/conversations/:conversationId/mute", chatHandler.MuteConversation)
 	chat.POST("/conversations/:conversationId/unmute", chatHandler.UnmuteConversation)
 	chat.POST("/conversations/:conversationId/muted", chatHandler.SetConversationMuted)
+	chat.POST("/conversations/:conversationId/name", chatHandler.RenameGroupConversation)
+	chat.POST("/conversations/:conversationId/leave", chatHandler.LeaveGroupConversation)
+	chat.POST("/conversations/:conversationId/participants", chatHandler.AddGroupParticipant)
+	chat.DELETE("/conversations/:conversationId/participants/:participantId", chatHandler.RemoveGroupParticipant)
+	chat.POST("/conversations/:conversationId/participants/:participantId/remove", chatHandler.RemoveGroupParticipant)
 	chat.GET("/:room/messages", chatHandler.GetRoomMessagesSince)
 
 	chat.GET("/ws", wsHandler.Connect)
@@ -60,6 +65,11 @@ func RegisterRoutes(
 	api.POST("/conversations/:conversationId/mute", chatHandler.MuteConversation)
 	api.POST("/conversations/:conversationId/unmute", chatHandler.UnmuteConversation)
 	api.POST("/conversations/:conversationId/muted", chatHandler.SetConversationMuted)
+	api.POST("/conversations/:conversationId/name", chatHandler.RenameGroupConversation)
+	api.POST("/conversations/:conversationId/leave", chatHandler.LeaveGroupConversation)
+	api.POST("/conversations/:conversationId/participants", chatHandler.AddGroupParticipant)
+	api.DELETE("/conversations/:conversationId/participants/:participantId", chatHandler.RemoveGroupParticipant)
+	api.POST("/conversations/:conversationId/participants/:participantId/remove", chatHandler.RemoveGroupParticipant)
 	api.GET("/chat/:room/messages", chatHandler.GetRoomMessagesSince)
 	api.GET("/ws", wsHandler.Connect)
 }

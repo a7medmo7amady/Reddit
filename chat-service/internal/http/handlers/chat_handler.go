@@ -131,6 +131,67 @@ func (h *ChatHandler) setConversationMuted(c *gin.Context, muted bool) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *ChatHandler) RenameGroupConversation(c *gin.Context) {
+	userID := c.GetString("userID")
+	conversationID := c.Param("conversationId")
+
+	var req dto.RenameConversationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.chat.RenameGroupConversation(c.Request.Context(), userID, conversationID, req.Name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *ChatHandler) RemoveGroupParticipant(c *gin.Context) {
+	userID := c.GetString("userID")
+	conversationID := c.Param("conversationId")
+	participantID := c.Param("participantId")
+
+	if err := h.chat.RemoveGroupParticipant(c.Request.Context(), userID, conversationID, participantID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *ChatHandler) AddGroupParticipant(c *gin.Context) {
+	userID := c.GetString("userID")
+	conversationID := c.Param("conversationId")
+
+	var req dto.AddGroupParticipantRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.chat.AddGroupParticipant(c.Request.Context(), userID, conversationID, req.ParticipantID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *ChatHandler) LeaveGroupConversation(c *gin.Context) {
+	userID := c.GetString("userID")
+	conversationID := c.Param("conversationId")
+
+	if err := h.chat.LeaveGroupConversation(c.Request.Context(), userID, conversationID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func (h *ChatHandler) GetInbox(c *gin.Context) {
 	userID := c.GetString("userID")
 

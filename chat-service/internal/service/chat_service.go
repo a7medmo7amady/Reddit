@@ -101,16 +101,34 @@ func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, 
 	now := time.Now().UTC()
 
 	creatorID = normalizeUserID(creatorID)
-	participantID := normalizeUserID(req.ParticipantIDs[0])
-	if creatorID == "" || participantID == "" {
-		return nil, errors.New("participant id is required")
-	}
-	if participantID == creatorID {
-		return nil, errors.New("cannot open dm with yourself")
+	if creatorID == "" {
+		return nil, errors.New("missing creator id")
 	}
 
-	req.ParticipantIDs = []string{participantID}
-	allParticipants := []string{participantID, creatorID}
+	participantIDs := make([]string, 0, len(req.ParticipantIDs))
+	seenParticipants := map[string]struct{}{creatorID: {}}
+	for _, rawID := range req.ParticipantIDs {
+		participantID := normalizeUserID(rawID)
+		if participantID == "" {
+			continue
+		}
+		if _, ok := seenParticipants[participantID]; ok {
+			continue
+		}
+		seenParticipants[participantID] = struct{}{}
+		participantIDs = append(participantIDs, participantID)
+	}
+	if len(participantIDs) == 0 {
+		return nil, errors.New("at least one other participant is required")
+	}
+
+	conversationType := "direct"
+	if len(participantIDs) > 1 {
+		conversationType = "group"
+	}
+
+	allParticipants := append([]string{}, participantIDs...)
+	allParticipants = append(allParticipants, creatorID)
 
 	for _, userID := range allParticipants {
 		exists, err := s.userExists(ctx, userID)
@@ -123,29 +141,32 @@ func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, 
 	}
 
 	// Block check (fallback to allow if User Service is unavailable, per docs).
-	for _, otherID := range req.ParticipantIDs {
+	for _, otherID := range participantIDs {
 		blocked := s.isBlockedDegradeToAllow(ctx, creatorID, otherID)
 		if blocked {
-			return nil, errors.New("cannot open dm (blocked)")
+			return nil, errors.New("cannot open conversation (blocked)")
 		}
 	}
 
-	existing, err := s.findDirectConversation(ctx, creatorID, participantID)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil {
-		return existing, nil
+	if conversationType == "direct" {
+		existing, err := s.findDirectConversation(ctx, creatorID, participantIDs[0])
+		if err != nil {
+			return nil, err
+		}
+		if existing != nil {
+			return existing, nil
+		}
 	}
 
 	conversation := models.Conversation{
 		ID:        primitive.NewObjectID(),
-		Type:      "direct",
+		Type:      conversationType,
+		Name:      normalizeConversationName(req.Name),
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
 
-	_, err = s.conversations.InsertOne(ctx, conversation)
+	_, err := s.conversations.InsertOne(ctx, conversation)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +187,14 @@ func (s *ChatService) CreateConversation(ctx context.Context, creatorID string, 
 	}
 
 	return &conversation, nil
+}
+
+func normalizeConversationName(name string) string {
+	name = strings.Join(strings.Fields(strings.TrimSpace(name)), " ")
+	if len(name) > 80 {
+		return name[:80]
+	}
+	return name
 }
 
 func (s *ChatService) findDirectConversation(ctx context.Context, userA, userB string) (*models.Conversation, error) {
@@ -693,6 +722,165 @@ func (s *ChatService) SetConversationMuted(ctx context.Context, userID string, c
 	return nil
 }
 
+func (s *ChatService) RenameGroupConversation(ctx context.Context, userID, conversationIDHex, name string) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	if err := s.requireGroupParticipant(ctx, conversationID, userID); err != nil {
+		return err
+	}
+
+	name = normalizeConversationName(name)
+	if name == "" {
+		return errors.New("group name is required")
+	}
+
+	_, err = s.conversations.UpdateByID(ctx, conversationID, bson.M{
+		"$set": bson.M{
+			"name":      name,
+			"updatedAt": time.Now().UTC(),
+		},
+	})
+	return err
+}
+
+func (s *ChatService) RemoveGroupParticipant(ctx context.Context, actorID, conversationIDHex, participantID string) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	if err := s.requireGroupParticipant(ctx, conversationID, actorID); err != nil {
+		return err
+	}
+
+	participantID = normalizeUserID(participantID)
+	if participantID == "" {
+		return errors.New("participant id is required")
+	}
+	if participantID == actorID {
+		return errors.New("use leave group instead")
+	}
+
+	res, err := s.participants.DeleteOne(ctx, bson.M{
+		"conversationId": conversationID,
+		"userId":         participantID,
+	})
+	if err != nil {
+		return err
+	}
+	if res.DeletedCount == 0 {
+		return errors.New("participant not found")
+	}
+
+	return nil
+}
+
+func (s *ChatService) AddGroupParticipant(ctx context.Context, actorID, conversationIDHex, participantID string) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	actorID = normalizeUserID(actorID)
+	participantID = normalizeUserID(participantID)
+	if participantID == "" {
+		return errors.New("participant id is required")
+	}
+	if participantID == actorID {
+		return errors.New("you are already in the group chat")
+	}
+
+	if err := s.requireGroupParticipant(ctx, conversationID, actorID); err != nil {
+		return err
+	}
+
+	exists, err := s.userExists(ctx, participantID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("participant does not exist")
+	}
+
+	alreadyParticipant, err := s.isParticipant(ctx, conversationID, participantID)
+	if err != nil {
+		return err
+	}
+	if alreadyParticipant {
+		return errors.New("participant is already in the group chat")
+	}
+
+	if s.isBlockedDegradeToAllow(ctx, actorID, participantID) {
+		return errors.New("cannot add participant (blocked)")
+	}
+
+	now := time.Now().UTC()
+	_, err = s.participants.InsertOne(ctx, models.ConversationParticipant{
+		ID:             primitive.NewObjectID(),
+		ConversationID: conversationID,
+		UserID:         participantID,
+		JoinedAt:       now,
+	})
+	if err != nil {
+		return err
+	}
+
+	_, err = s.conversations.UpdateByID(ctx, conversationID, bson.M{
+		"$set": bson.M{"updatedAt": now},
+	})
+	return err
+}
+
+func (s *ChatService) LeaveGroupConversation(ctx context.Context, userID, conversationIDHex string) error {
+	conversationID, err := primitive.ObjectIDFromHex(conversationIDHex)
+	if err != nil {
+		return errors.New("invalid conversation id")
+	}
+
+	if err := s.requireGroupParticipant(ctx, conversationID, userID); err != nil {
+		return err
+	}
+
+	res, err := s.participants.DeleteOne(ctx, bson.M{
+		"conversationId": conversationID,
+		"userId":         userID,
+	})
+	if err != nil {
+		return err
+	}
+	if res.DeletedCount == 0 {
+		return errors.New("participant not found")
+	}
+
+	return nil
+}
+
+func (s *ChatService) requireGroupParticipant(ctx context.Context, conversationID primitive.ObjectID, userID string) error {
+	var conversation models.Conversation
+	if err := s.conversations.FindOne(ctx, bson.M{"_id": conversationID}).Decode(&conversation); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return errors.New("conversation not found")
+		}
+		return err
+	}
+	if conversation.Type != "group" {
+		return errors.New("conversation is not a group chat")
+	}
+
+	ok, err := s.isParticipant(ctx, conversationID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("user is not a participant")
+	}
+
+	return nil
+}
+
 func (s *ChatService) DeleteMessage(ctx context.Context, actorID, messageIDHex string, isModerator bool) error {
 	messageID, err := primitive.ObjectIDFromHex(messageIDHex)
 	if err != nil {
@@ -839,6 +1027,7 @@ func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxI
 		{{Key: "$project", Value: bson.M{
 			"conversationId": 1,
 			"type":           "$conv.type",
+			"name":           "$conv.name",
 			"communityId":    "$conv.communityId",
 			"updatedAt":      1,
 			"unreadCount":    1,
@@ -856,6 +1045,7 @@ func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxI
 	var raw []struct {
 		ConversationID primitive.ObjectID `bson:"conversationId"`
 		Type           string             `bson:"type"`
+		Name           string             `bson:"name"`
 		CommunityID    string             `bson:"communityId"`
 		UpdatedAt      time.Time          `bson:"updatedAt"`
 		UnreadCount    int                `bson:"unreadCount"`
@@ -877,12 +1067,13 @@ func (s *ChatService) GetInbox(ctx context.Context, userID string) ([]dto.InboxI
 		item := dto.InboxItem{
 			ConversationID: r.ConversationID.Hex(),
 			Type:           r.Type,
+			Name:           r.Name,
 			CommunityID:    r.CommunityID,
 			UnreadCount:    r.UnreadCount,
 			Muted:          r.Muted,
 			UpdatedAt:      r.UpdatedAt,
 		}
-		if r.Type == "direct" {
+		if r.Type == "direct" || r.Type == "group" {
 			otherParticipants, err := s.getOtherParticipants(ctx, r.ConversationID, userID)
 			if err != nil {
 				return nil, err

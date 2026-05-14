@@ -9,6 +9,7 @@ import (
 type Conversation struct {
 	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Type        string             `bson:"type" json:"type"` // direct, community
+	Name        string             `bson:"name,omitempty" json:"name,omitempty"`
 	CommunityID string             `bson:"communityId,omitempty" json:"communityId,omitempty"`
 	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`

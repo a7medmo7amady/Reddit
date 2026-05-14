@@ -1,8 +1,17 @@
 package dto
 
 type CreateConversationRequest struct {
-	// DM is 1:1 (creator + 1 participant).
-	ParticipantIDs []string `json:"participantIds" binding:"required,min=1,max=1"`
+	// One participant creates/returns a DM; multiple participants create a group chat.
+	ParticipantIDs []string `json:"participantIds" binding:"required,min=1"`
+	Name           string   `json:"name" binding:"omitempty,max=80"`
+}
+
+type RenameConversationRequest struct {
+	Name string `json:"name" binding:"required,max=80"`
+}
+
+type AddGroupParticipantRequest struct {
+	ParticipantID string `json:"participantId" binding:"required"`
 }
 
 type SendMessageRequest struct {
