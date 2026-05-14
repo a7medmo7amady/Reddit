@@ -8,6 +8,12 @@ export function getApiBaseUrl(): string {
 
 export function buildApiUrl(path: string): string {
   const baseUrl = getApiBaseUrl();
+  if (!baseUrl && typeof window !== "undefined") {
+    console.error(
+      "NEXT_PUBLIC_API_GATEWAY_URL is not set — API requests will fail. " +
+      "Ensure .env.local is present and restart the dev server."
+    );
+  }
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${baseUrl}${normalizedPath}`;
 }

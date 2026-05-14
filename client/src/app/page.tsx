@@ -94,7 +94,6 @@ export default function Home() {
     if (getToken()) {
       queueMicrotask(() => setIsAuthed(true));
     }
-    if (getToken()) setIsAuthed(true);
   }, []);
 
   const fetchPosts = useCallback(async () => {
@@ -114,36 +113,6 @@ export default function Home() {
           return;
         }
 
-        const res = await fetch(buildApiUrl("/auth/signup"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            username: formData.get("username"),
-            email,
-            password,
-          }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setError(data.message ?? "Signup failed. Please try again.");
-          return;
-        }
-        saveToken(data.accessToken);
-        setIsAuthed(true);
-      } else {
-        const res = await fetch(buildApiUrl("/auth/login"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ identifier: email, password }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          setError(data.message ?? "Invalid email or password.");
-          return;
         const res = await fetch(`${API_URL}/posts/feed?communities=${followed}`, token ? { headers } : undefined);
         if (res.ok) {
           const data = await res.json();
@@ -233,47 +202,6 @@ export default function Home() {
     setActiveTab(tab);
   };
 
-  if (isAuthed) {
-    const username = getMyUsername();
-    return (
-      <main className={styles.page}>
-        <header className={styles.header}>
-          <div className={styles.brand}>
-            <Image
-              className={styles.redditLogo}
-              src="/reddit-1.svg"
-              alt="Reddit"
-              width={124}
-              height={40}
-              priority
-            />
-          </div>
-        </header>
-        <section className={styles.authShell}>
-          <div className={styles.authCard}>
-            <h1>You&apos;re in!</h1>
-            {username && (
-              <Link
-                href={`/u/${username}`}
-                style={{ display: "block", marginBottom: 12, color: "#ff4500" }}
-              >
-                View your profile →
-              </Link>
-            )}
-            <Link
-              href="/chat"
-              style={{ display: "block", marginBottom: 12, color: "#ff4500" }}
-            >
-              Open chat →
-            </Link>
-            <button className={styles.submitButton} onClick={handleLogout}>
-              Log Out
-            </button>
-          </div>
-        </section>
-      </main>
-    );
-  }
   const handleCreatePostClick = (e: React.MouseEvent) => {
     if (!isAuthed) { e.preventDefault(); setShowAuthPopup(true); }
   };
@@ -288,9 +216,24 @@ export default function Home() {
           </Link>
         </div>
 
+        <div className={styles.headerCenter}>
+          <div className={styles.searchBar}>
+            <svg className={styles.searchIcon} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" placeholder="Search Reddit" className={styles.searchInput} />
+          </div>
+        </div>
+
         <div className={styles.headerRight}>
           {isAuthed && username ? (
             <div className={styles.userMenu}>
+              <Link href="/chat" className={styles.chatIcon} title="Chat">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </Link>
               <Link href={`/u/${username}`} className={styles.avatar} title={username}>
                 {username.charAt(0).toUpperCase()}
               </Link>
@@ -306,29 +249,6 @@ export default function Home() {
         </div>
       </header>
 
-      <section className={styles.authShell} aria-labelledby="auth-title">
-        <form className={styles.authCard} onSubmit={handleSubmit}>
-          <h1 id="auth-title">{isSignup ? "Sign Up" : "Log In"}</h1>
-
-          <p className={styles.policyText}>
-            By continuing, you agree to our{" "}
-            <button type="button">User Agreement</button> and acknowledge that
-            you understand the <button type="button">Privacy Policy</button>.
-          </p>
-
-          <div className={styles.oauthStack}>
-            <a href={buildApiUrl("/oauth2/authorization/google")}>
-              <Image
-                className={styles.googleLogo}
-                src="/google-g-2015.svg"
-                alt=""
-                width={22}
-                height={22}
-                aria-hidden="true"
-              />
-              Continue with Google
-            </a>
-          </div>
       <div className={styles.body}>
         {/* Left Sidebar */}
         <nav className={styles.leftSidebar}>

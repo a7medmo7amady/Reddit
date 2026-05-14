@@ -34,7 +34,9 @@ export async function fetchWithAuth(
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  headers.set("Content-Type", "application/json");
+  if (options.body) {
+    headers.set("Content-Type", "application/json");
+  }
 
   return fetch(buildApiUrl(path), {
     ...options,

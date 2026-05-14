@@ -83,6 +83,10 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.Use(middleware.CORS())
 	r.Use(middleware.RateLimit())
 
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "route not found: " + c.Request.Method + " " + c.Request.URL.Path})
+	})
+
 	// Health check — hits each downstream service and reports aggregate status.
 	r.GET("/health", handler.Health(map[string]string{
 		"user":         resolve("user"),

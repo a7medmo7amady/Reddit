@@ -72,7 +72,14 @@ func main() {
 
 	wsHandler := realtime.NewHandler(hub, dispatcher, chatService, cfg.MaxWSConns)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(gin.Logger())
+	r.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
+		c.JSON(500, gin.H{"error": "internal server error"})
+	}))
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "route not found: " + c.Request.Method + " " + c.Request.URL.Path})
+	})
 	chathttp.RegisterRoutes(r, chatHandler, wsHandler)
 
 	srv := &http.Server{

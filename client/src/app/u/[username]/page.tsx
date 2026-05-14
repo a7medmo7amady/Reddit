@@ -75,6 +75,7 @@ export default function UserProfilePage() {
   const { username } = useParams<{ username: string }>();
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
@@ -92,14 +93,33 @@ export default function UserProfilePage() {
   };
 
   useEffect(() => {
-    fetch(buildApiUrl(`/users/${username}`))
+    setNotFound(false);
+    setFetchError(null);
+    setProfile(null);
+    fetch(buildApiUrl(`/users/${encodeURIComponent(username)}`))
       .then((r) => {
         if (r.status === 404) { setNotFound(true); return null; }
+        if (!r.ok) { return r.json().then(d => { throw new Error(d?.error || `Server error ${r.status}`); }); }
         return r.json();
       })
       .then((data) => data && setProfile(data))
-      .catch(() => setNotFound(true));
-  }, [username]);
+      .catch((err: Error) => {
+        if (!notFound) setFetchError(err.message ?? "Could not load profile");
+      });
+  }, [username]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (myUsername && myUsername !== username) {
+      fetchWithAuth("/users/me/following")
+        .then(res => res.ok ? res.json() : [])
+        .then(followingList => {
+          if (Array.isArray(followingList)) {
+            setFollowing(followingList.some((user: any) => user.username === username));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [myUsername, username]);
 
   useEffect(() => {
     if (tab !== "posts" || !username) return;
@@ -143,6 +163,23 @@ export default function UserProfilePage() {
         <div className={styles.notFound}>
           <h1>u/{username}</h1>
           <p>This account doesn&apos;t exist. Try searching for something else.</p>
+          <Link href="/" className={styles.homeLink}>Go home</Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className={styles.page}>
+        <nav className={styles.topbar}>
+          <Link href="/">
+            <Image src="/reddit-1.svg" alt="Reddit" width={100} height={32} />
+          </Link>
+        </nav>
+        <div className={styles.notFound}>
+          <h1>u/{username}</h1>
+          <p>Could not load profile: {fetchError}</p>
           <Link href="/" className={styles.homeLink}>Go home</Link>
         </div>
       </div>
