@@ -29,14 +29,12 @@ func Health(services map[string]string) gin.HandlerFunc {
 			}
 		}
 
-		status := http.StatusOK
 		gatewayStatus := "ok"
 		if degraded {
-			status = http.StatusServiceUnavailable
 			gatewayStatus = "degraded"
 		}
 
-		c.JSON(status, gin.H{
+		c.JSON(http.StatusOK, gin.H{
 			"status":   gatewayStatus,
 			"services": results,
 		})

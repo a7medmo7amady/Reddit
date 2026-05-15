@@ -7,8 +7,9 @@ import (
 )
 
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -25,6 +26,9 @@ func Verify(tokenString, secret string) (*Claims, error) {
 	}
 	if !token.Valid {
 		return nil, errors.New("invalid token")
+	}
+	if claims.UserID == "" {
+		claims.UserID = claims.Subject
 	}
 	return claims, nil
 }

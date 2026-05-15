@@ -17,3 +17,15 @@
 
  Anyway for This extra Module we will track based on User stories and uses case sections in the SRS To an extent 
 
+---
+
+## Search Diagram 
+  Search is divide into 3 Models MongoDB (Main), Postgresql (user) and Redis(Trending)
+   - Mongo: Everything except User Model 
+   - Postgresql: User's Model Only
+   - Redis: trending posts only
+ 
+**Search Client** : Should redirect to The right DB, For example the user should type in search Bar u/WaelAlbyaid to search for user else it won't work for user searching 
+
+
+![Search](search.png)

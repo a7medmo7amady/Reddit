@@ -69,11 +69,11 @@
 
 ### Chat
 
-| Operation | Type | Why |
-|---|---|---|
-| Send message | Sync | Save message and confirm instantly to sender |
-| Deliver to recipient | Async | Push message without blocking sender request |
-| Fetch missed messages | Sync | Client requests and receives messages immediately |
+| Operation             | Type  | Why                                               |
+| --------------------- | ----- | ------------------------------------------------- |
+| Send message          | Sync  | Save message and confirm instantly to sender      |
+| Deliver to recipient  | Async | Push message without blocking sender request      |
+| Fetch missed messages | Sync  | Client requests and receives messages immediately |
 
 ---
 
