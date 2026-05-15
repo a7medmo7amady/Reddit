@@ -27,7 +27,6 @@ func main() {
 	middleware.SetJWTSecret(cfg.JWTSecret)
 	middleware.SetAllowedOrigin(cfg.AllowedOrigin)
 
-	// ── Redis rate limiter ────────────────────────────────────────────────────
 	if cfg.RedisAddr != "" {
 		rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 		if err := rlpkg.Ping(rdb); err != nil {
@@ -38,7 +37,6 @@ func main() {
 		}
 	}
 
-	// ── Consul resolver ───────────────────────────────────────────────────────
 	resolve := staticResolver(cfg)
 	if cfg.ConsulAddr != "" {
 		r, err := consulpkg.New(cfg.ConsulAddr)
@@ -87,7 +85,6 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		c.JSON(http.StatusNotFound, gin.H{"error": "route not found: " + c.Request.Method + " " + c.Request.URL.Path})
 	})
 
-	// Health check — hits each downstream service and reports aggregate status.
 	r.GET("/health", handler.Health(map[string]string{
 		"user":         resolve("user"),
 		"feed":         resolve("feed"),
@@ -101,22 +98,18 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.Any("/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/login/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/users/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
-
-	// Public post reads — no auth required
-	r.GET("/posts/trending", gin.WrapH(proxy.NewSingle(resolve("feed"))))
-	r.GET("/posts/feed", gin.WrapH(proxy.NewSingle(resolve("feed"))))
-	r.GET("/posts/community/*path", gin.WrapH(proxy.NewSingle(resolve("feed"))))
-	r.GET("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
-	r.GET("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/trending", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts/feed", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts/community/*path", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/:id", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/status", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/history", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
-	// Public community reads — no auth required
-	r.GET("/communities/:name", gin.WrapH(proxy.NewSingle(resolve("user"))))
+	r.GET("/communities/:name", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("user"))))
 
-	// Public media assets — images and video served directly from video-service
 	r.GET("/assets/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
 	protected := r.Group("/")

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import styles from "./page.module.css";
 import { getToken } from "@/lib/auth";
@@ -11,6 +11,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:808
 
 export default function SubmitPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [community, setCommunity] = useState("");
@@ -29,7 +30,10 @@ export default function SubmitPage() {
       return;
     }
     setUsername(getMyUsername());
-  }, [router]);
+    // Pre-fill community from query param (e.g. from r/[name] page)
+    const prefill = searchParams.get("community");
+    if (prefill) setCommunity(prefill);
+  }, [router, searchParams]);
 
   const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

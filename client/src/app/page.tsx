@@ -7,49 +7,13 @@ import styles from "./page.module.css";
 import Link from "next/link";
 import { saveToken, getToken, logout } from "@/lib/auth";
 import { getMyUsername } from "@/lib/jwt";
-import { buildApiUrl } from "@/lib/config";
 import AuthPopup from "@/components/AuthPopup";
 import CreateCommunityPopup from "@/components/CreateCommunityPopup";
+import PostCard, { Post } from "@/components/PostCard";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
 type TabMode = "home" | "trending" | "followed";
-
-interface PostImage { thumbnail: string; preview: string; full: string; }
-
-interface Post {
-  id?: string | number;
-  stringId?: string;
-  title: string;
-  body?: string;
-  authorId?: string;
-  author?: string;
-  community: string;
-  type?: string;
-  upvotes?: number;
-  downvotes?: number;
-  score?: number;
-  commentCount?: number;
-  createdAt: string;
-  images?: PostImage[];
-  video?: { status: string; playbackUrl?: string };
-}
-
-function formatScore(n: number): string {
-  if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
-  return String(n);
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
 
 const NAV_LINKS = [
   { label: "Home",    href: "/" },
@@ -75,7 +39,6 @@ export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState<string | null>(null);
-  const [votedPosts, setVotedPosts] = useState<Record<string, number>>({});
   const [followedCommunities, setFollowedCommunities] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
@@ -188,34 +151,6 @@ export default function Home() {
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
   const handleLogout = async () => { await logout(); setIsAuthed(false); };
-
-  const handleVote = async (postKey: string, direction: number) => {
-    if (!isAuthed) { setShowAuthPopup(true); return; }
-    const prev = votedPosts[postKey] ?? 0;
-    const next = prev === direction ? 0 : direction;
-    const delta = next - prev;
-    setVotedPosts(v => ({ ...v, [postKey]: next }));
-    setPosts(ps => ps.map(p => {
-      const k = p.stringId || String(p.id);
-      if (k !== postKey) return p;
-      return { ...p, score: (p.score ?? 0) + delta };
-    }));
-    try {
-      const res = await fetch(`${API_URL}/posts/${postKey}/vote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify({ direction: next }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPosts(ps => ps.map(p => {
-          const k = p.stringId || String(p.id);
-          if (k !== postKey) return p;
-          return { ...p, upvotes: data.upvotes, downvotes: data.downvotes, score: data.score };
-        }));
-      }
-    } catch { /* optimistic — keep local delta */ }
-  };
 
   const handleTabClick = (tab: TabMode) => {
     if (tab === "followed" && !isAuthed) { setShowAuthPopup(true); return; }
@@ -339,79 +274,14 @@ export default function Home() {
           ) : (
             <div className={styles.postList}>
               {posts.map(post => {
-                const score = post.score ?? ((post.upvotes ?? 0) - (post.downvotes ?? 0));
-                const authorName = post.author || post.authorId || "unknown";
                 const key = post.stringId || String(post.id);
-                const voted = votedPosts[key] ?? 0;
                 return (
-                  <article key={key} className={styles.postCard}>
-                    <div className={styles.postBody}>
-                      <div className={styles.postMeta}>
-                        <div className={styles.postAuthorAvatar}>{authorName.charAt(0).toUpperCase()}</div>
-                        <Link href={`/r/${post.community}`} className={styles.communityTag}>
-                          r/{post.community}
-                        </Link>
-                        <span className={styles.metaDot}>•</span>
-                        <span className={styles.metaText}>u/{authorName}</span>
-                        <span className={styles.metaDot}>•</span>
-                        <span className={styles.metaText}>{timeAgo(post.createdAt)}</span>
-                      </div>
-                      <Link href={`/posts/${key}`} className={styles.postTitleLink}>
-                        <h2 className={styles.postTitle}>{post.title}</h2>
-                      </Link>
-                      {post.body && <p className={styles.postExcerpt}>{post.body}</p>}
-                      {post.images && post.images.length > 0 && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={`${API_URL}${post.images[0].preview}`} alt="" className={styles.postMediaPreview} />
-                      )}
-                      {post.type === "video" && post.video?.playbackUrl && (
-                        <video src={post.video.playbackUrl} className={styles.postMediaPreview} muted playsInline />
-                      )}
-                      {post.type === "video" && !post.video?.playbackUrl && (
-                        <div className={styles.videoPlaceholder}>&#9654; Video processing...</div>
-                      )}
-                      <div className={styles.postActions}>
-                        {/* Vote pill */}
-                        <div className={styles.votePill}>
-                          <button
-                            className={`${styles.voteBtn} ${voted === 1 ? styles.upvoted : ""}`}
-                            onClick={() => handleVote(key, 1)}
-                            aria-label="Upvote"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4 L20 14 H4 Z"/></svg>
-                          </button>
-                          <span className={`${styles.score} ${voted === 1 ? styles.scoreUp : voted === -1 ? styles.scoreDown : ""}`}>
-                            {formatScore(score)}
-                          </span>
-                          <button
-                            className={`${styles.voteBtn} ${voted === -1 ? styles.downvoted : ""}`}
-                            onClick={() => handleVote(key, -1)}
-                            aria-label="Downvote"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20 L4 10 H20 Z"/></svg>
-                          </button>
-                        </div>
-
-                        {/* Comments */}
-                        <Link href={`/posts/${key}`} className={styles.actionBtn}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                          </svg>
-                          {post.commentCount ?? 0} Comments
-                        </Link>
-
-                        {/* Share */}
-                        <button className={styles.actionBtn}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                            <polyline points="16 6 12 2 8 6"/>
-                            <line x1="12" y1="2" x2="12" y2="15"/>
-                          </svg>
-                          Share
-                        </button>
-                      </div>
-                    </div>
-                  </article>
+                  <PostCard
+                    key={key}
+                    post={post}
+                    isAuthed={isAuthed}
+                    onAuthRequired={() => setShowAuthPopup(true)}
+                  />
                 );
               })}
             </div>

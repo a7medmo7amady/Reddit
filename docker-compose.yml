@@ -128,19 +128,28 @@ services:
       - .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reddit_clone
-      SPRING_MONGODB_URI: mongodb://mongo:27017/reddit_clone
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/reddit_clone
+      SPRING_DATA_MONGODB_HOST: mongo
+      SPRING_DATA_MONGODB_PORT: "27017"
+      SPRING_DATA_MONGODB_DATABASE: reddit_clone
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
       MONGO_HOST: mongo
       MONGO_PORT: "27017"
       MONGO_DB: reddit_clone
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: "6379"
       KAFKA_BROKERS: kafka:9092
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Force the JVM to pick up the correct MongoDB URI regardless of baked properties
+      JAVA_TOOL_OPTIONS: >-
+        -Dspring.data.mongodb.uri=mongodb://mongo:27017/reddit_clone
+        -Dspring.data.redis.host=redis
+        -Dspring.data.redis.port=6379
     depends_on:
       - postgres
       - mongo
       - kafka
     restart: unless-stopped
+
 
   chat-service:
     build: ./chat-service

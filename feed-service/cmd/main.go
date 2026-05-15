@@ -29,7 +29,6 @@ func getEnv(key, fallback string) string {
 func main() {
 	ctx := context.Background()
 
-	// ── Redis ─────────────────────────────────────────────────────────────────
 	rdb := redis.NewClient(&redis.Options{Addr: getEnv("REDIS_ADDR", "localhost:6379")})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatalf("redis: %v", err)
@@ -40,18 +39,15 @@ func main() {
 	pc := cache.NewPostCache(rdb)
 	bc := cache.NewBanCache(rdb)
 
-	// ── Kafka consumers ───────────────────────────────────────────────────────
 	brokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
 	kafka.StartPostConsumer(ctx, brokers, tc, pc)
 	kafka.StartBanConsumer(ctx, brokers, bc)
 
-	// ── HTTP clients ──────────────────────────────────────────────────────────
 	videoClient, err := svcgrpc.NewVideoClient(getEnv("VIDEO_REST_ADDR", "localhost:8083"))
 	if err != nil {
 		log.Printf("[gRPC] VideoService client init failed: %v (continuing without it)", err)
 	} else {
 		log.Println("[gRPC] VideoService client connected")
-		// Warm up trending communities from VideoService on startup
 		go func() {
 			for _, community := range []string{"programming", "golang", "python", "gaming", "worldnews", "science", "technology", "AskReddit", "linux", "webdev"} {
 				if err := videoClient.SyncCommunityPosts(ctx, community, pc, tc); err != nil {
@@ -68,7 +64,6 @@ func main() {
 		log.Println("[gRPC] UserService client connected")
 	}
 
-	// ── gRPC server ───────────────────────────────────────────────────────────
 	grpcPort := getEnv("GRPC_PORT", "50053")
 	lis, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {
@@ -83,16 +78,16 @@ func main() {
 		}
 	}()
 
-	// ── HTTP server ───────────────────────────────────────────────────────────
-	_ = userClient // available for handlers that need user enrichment
+
+	_ = userClient 
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	r.GET("/posts/trending", handler.Trending(tc))
-	r.GET("/posts/community/:name", handler.CommunityFeed(pc))
-	r.GET("/posts/feed", handler.UserFeed(pc))
+	r.GET("/posts/community/:name", handler.CommunityFeed(pc, bc))
+	r.GET("/posts/feed", handler.UserFeed(pc, bc))
 
 	port := getEnv("PORT", "8081")
 	log.Printf("feed-service HTTP listening on :%s", port)
