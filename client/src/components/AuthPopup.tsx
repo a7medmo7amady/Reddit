@@ -53,7 +53,7 @@ export default function AuthPopup({ onClose, onSuccess }: AuthPopupProps) {
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setError(data.message ?? "Signup failed. Please try again.");
+          setError(data.error ?? data.message ?? "Signup failed. Please try again.");
           setIsLoading(false);
           return;
         }
@@ -69,7 +69,7 @@ export default function AuthPopup({ onClose, onSuccess }: AuthPopupProps) {
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          setError(data.message ?? "Invalid email or password.");
+          setError(data.error ?? data.message ?? "Invalid email or password.");
           setIsLoading(false);
           return;
         }
