@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const CommentModel = require('../models/comment.model');
 const PostModel = require('../models/post.model');
 const kafkaService = require('../services/kafka.service');
+const notificationService = require('../services/notification.service');
 
 router.get('/posts/:postId/comments', async (req, res) => {
     try {
@@ -82,6 +83,17 @@ router.post('/posts/:postId/comments', async (req, res) => {
             createdAt:    updatedPost.createdAt,
         });
 
+        // Notify post author if someone else commented
+        if (post.authorId && post.authorId !== authorId) {
+            await notificationService.sendNotification({
+                userId: post.authorId,
+                title: 'New comment on your post',
+                message: `${author} commented on your post "${post.title}"`,
+                link: `/posts/${postId}`,
+                type: 'REPLY'
+            });
+        }
+
         res.status(201).json(comment);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -107,6 +119,18 @@ router.post('/comments/:id/vote', async (req, res) => {
         else if (direction === -1) update.$inc = { downvotes: 1 };
 
         const updatedComment = await CommentModel.update(commentId, update);
+
+        // Notify comment author on upvote (only if someone else upvoted)
+        const voterId = req.headers['x-user-id'];
+        if (direction === 1 && comment.authorId && voterId && comment.authorId !== voterId) {
+            await notificationService.sendNotification({
+                userId: comment.authorId,
+                title: 'Upvote on your comment',
+                message: `Someone upvoted your comment`,
+                link: `/posts/${comment.postId}`,
+                type: 'REPLY'
+            });
+        }
 
         res.json({
             id: updatedComment.id,

@@ -6,19 +6,29 @@ import (
 	"search-service/internal/model"
 	"search-service/internal/service"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
 type SearchHandler struct {
-	searchService service.SearchService
-	videoClient   client.VideoClient
+	searchService   service.SearchService
+	videoClient     client.VideoClient
+	userClient      client.UserClient
+	videoHTTPClient client.VideoHTTPClient
 }
 
-func NewSearchHandler(searchService service.SearchService, videoClient client.VideoClient) *SearchHandler {
+func NewSearchHandler(
+	searchService service.SearchService,
+	videoClient client.VideoClient,
+	userClient client.UserClient,
+	videoHTTPClient client.VideoHTTPClient,
+) *SearchHandler {
 	return &SearchHandler{
-		searchService: searchService,
-		videoClient:   videoClient,
+		searchService:   searchService,
+		videoClient:     videoClient,
+		userClient:      userClient,
+		videoHTTPClient: videoHTTPClient,
 	}
 }
 
@@ -71,42 +81,47 @@ func (h *SearchHandler) Search(c *gin.Context) {
 		return
 	}
 
-	searchType := c.DefaultQuery("type", "posts")
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 
-	var results interface{}
-	var total int64
-	var err error
-
-	switch searchType {
-	case "posts":
-		filters := map[string]interface{}{
-			"type":         c.Query("content_type"), // text, image, video
-			"community_id": c.Query("community_id"), // scoped search
-			"date_range":   c.Query("date_range"),   // week, month
+	// If user typed "u/" do the searching inside the postgres db (user-service)
+	// else search in MongoDB (video-service)
+	if strings.HasPrefix(query, "u/") {
+		userQuery := strings.TrimPrefix(query, "u/")
+		users, total, err := h.userClient.SearchUsers(c.Request.Context(), userQuery, limit, page)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
-		results, total, err = h.searchService.SearchPosts(c.Request.Context(), query, filters, limit, page)
-	case "communities":
-		results, total, err = h.searchService.SearchCommunities(c.Request.Context(), query, limit, page)
-	case "users":
-		results, total, err = h.searchService.SearchUsers(c.Request.Context(), query, limit, page)
-	default:
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid search type"})
+		c.JSON(http.StatusOK, gin.H{
+			"results": users,
+			"total":   total,
+			"limit":   limit,
+			"page":    page,
+			"type":    "users",
+			"source":  "postgres",
+		})
 		return
 	}
 
+	// Search in MongoDB via video-service
+	result, err := h.videoHTTPClient.Search(c.Request.Context(), query, limit, page)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"results": results,
-		"total":   total,
-		"limit":   limit,
-		"page":    page,
-		"type":    searchType,
+		"results": gin.H{
+			"posts":    result.Posts.Items,
+			"comments": result.Comments.Items,
+		},
+		"posts_total":    result.Posts.Total,
+		"comments_total": result.Comments.Total,
+		"limit":          limit,
+		"page":           page,
+		"type":           "posts",
+		"source":         "mongodb",
 	})
 }
 
