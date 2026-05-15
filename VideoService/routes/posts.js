@@ -11,6 +11,7 @@ const storageService = require('../services/storage.service');
 const imageService = require('../services/image.service');
 const banService = require('../services/ban.service');
 const consulService = require('../services/consul.service');
+const notificationService = require('../services/notification.service');
 const { Upload } = require('@aws-sdk/lib-storage');
 
 // ── Multer config ─────────────────────────────────────────────────────────────
@@ -417,6 +418,17 @@ router.post('/posts/:id/vote', async (req, res) => {
             images:       updatedPost.images || [],
             video:        updatedPost.video ? { status: updatedPost.video.status, playbackUrl: updatedPost.video.playbackUrl || '' } : null,
         });
+
+        // Notify post author on upvote (only if someone else upvoted)
+        if (direction === 1 && post.authorId && userId && post.authorId !== userId) {
+            await notificationService.sendNotification({
+                userId: post.authorId,
+                title: 'Upvote on your post',
+                message: `Someone upvoted your post "${post.title}"`,
+                link: `/posts/${postId}`,
+                type: 'REPLY'
+            });
+        }
 
         res.json({
             id: updatedPost.id,

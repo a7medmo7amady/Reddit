@@ -31,9 +31,13 @@ func main() {
 		defer videoClient.Close()
 	}
 
+	// Initialize HTTP clients for cross-service search
+	userClient := client.NewUserClient()
+	videoHTTPClient := client.NewVideoHTTPClient()
+
 	// Initialize services and handlers
 	searchService := service.NewSearchService(esClient)
-	searchHandler := handler.NewSearchHandler(searchService, videoClient)
+	searchHandler := handler.NewSearchHandler(searchService, videoClient, userClient, videoHTTPClient)
 
 	// Initialize and start Kafka Consumer for indexing
 	searchConsumer, err := consumer.NewSearchConsumer(searchService)
@@ -58,7 +62,9 @@ func main() {
 		})
 	})
 
-	// Search endpoints
+	// Search endpoints (top-level aliases for gateway compatibility)
+	r.GET("/search", searchHandler.Search)
+
 	searchGroup := r.Group("/api/v1/search")
 	{
 		searchGroup.GET("/", searchHandler.Search) // Universal search

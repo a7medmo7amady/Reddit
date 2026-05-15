@@ -90,6 +90,7 @@ async function deregister() {
 const STATIC_FALLBACKS = {
     user:         `http://${process.env.USER_SERVICE_ADDR  || 'user-service:8080'}`,
     feed:         `http://${process.env.FEED_SERVICE_ADDR  || 'feed-service:8081'}`,
+    notification: `http://${process.env.NOTIFICATION_SERVICE_ADDR || 'notification-service:8084'}`,
     'api-gateway': `http://${process.env.API_GATEWAY_URL?.replace(/^https?:\/\//, '') || 'api-gateway:8088'}`,
 };
 

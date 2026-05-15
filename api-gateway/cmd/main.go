@@ -129,6 +129,7 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		protected.POST("/communities/:name/join", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.POST("/communities/:name/leave", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.GET("/communities/:name/membership", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.GET("/search", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.Any("/notifications/*path", gin.WrapH(proxy.NewSingle(resolve("notification"))))
