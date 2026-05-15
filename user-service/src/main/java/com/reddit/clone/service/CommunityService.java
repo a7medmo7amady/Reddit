@@ -13,6 +13,8 @@ import com.reddit.clone.repository.CommunityDocumentRepository;
 import com.reddit.clone.repository.CommunityRepository;
 import com.reddit.clone.repository.UserCommunityRepository;
 import com.reddit.clone.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,8 @@ import java.util.List;
 
 @Service
 public class CommunityService {
+
+    private static final Logger log = LoggerFactory.getLogger(CommunityService.class);
 
     private final CommunityRepository communityRepository;
     private final CommunityDocumentRepository communityDocumentRepository;
@@ -64,12 +68,16 @@ public class CommunityService {
                 creator.getId(), creator.getUsername());
         communityDocumentRepository.save(doc);
 
-        // Publish Kafka event for search indexing
-        CommunityCreatedEvent event = new CommunityCreatedEvent(
-                doc.getId(), community.getId(), community.getName(),
-                community.getDescription(), 1, creator.getUsername(),
-                community.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-        kafkaEventPublisher.publish("community.created", String.valueOf(community.getId()), event);
+        // Publish Kafka event for search indexing (non-fatal — community is already persisted)
+        try {
+            CommunityCreatedEvent event = new CommunityCreatedEvent(
+                    doc.getId(), community.getId(), community.getName(),
+                    community.getDescription(), 1, creator.getUsername(),
+                    community.getCreatedAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+            kafkaEventPublisher.publish("community.created", String.valueOf(community.getId()), event);
+        } catch (Exception e) {
+            log.warn("Failed to publish community.created event for community {}: {}", community.getName(), e.getMessage());
+        }
 
         return new CommunityDTO(community.getId(), community.getName(), community.getDescription(), 1);
     }

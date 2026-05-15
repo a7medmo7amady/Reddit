@@ -13,6 +13,7 @@ import (
 	"feed-service/internal/handler"
 	"feed-service/internal/kafka"
 	feedpb "feed-service/pkg/proto/feed"
+	"feed-service/pkg/consul"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -29,42 +30,75 @@ func getEnv(key, fallback string) string {
 func main() {
 	ctx := context.Background()
 
+	// ── Redis ─────────────────────────────────────────────────────────────────
 	rdb := redis.NewClient(&redis.Options{Addr: getEnv("REDIS_ADDR", "localhost:6379")})
 	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatalf("redis: %v", err)
 	}
 
 	tc := cache.NewTrendingCache(rdb)
-
 	pc := cache.NewPostCache(rdb)
 	bc := cache.NewBanCache(rdb)
 
+	// ── Kafka consumers ───────────────────────────────────────────────────────
 	brokers := strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ",")
 	kafka.StartPostConsumer(ctx, brokers, tc, pc)
 	kafka.StartBanConsumer(ctx, brokers, bc)
 
-	videoClient, err := svcgrpc.NewVideoClient(getEnv("VIDEO_REST_ADDR", "localhost:8083"))
+	// ── Consul service discovery ──────────────────────────────────────────────
+	// Static fallbacks are used when Consul is unreachable or a service hasn't
+	// registered itself yet.
+	consulAddr := getEnv("CONSUL_ADDR", "consul:8500")
+	resolver := consul.New(consulAddr, map[string]string{
+		"video": "http://" + getEnv("VIDEO_REST_ADDR", "video-service:8083"),
+		"user":  "http://" + getEnv("USER_SERVICE_ADDR", "user-service:8080"),
+	})
+
+	videoAddr := resolver.Resolve("video")
+	if videoAddr == "" {
+		videoAddr = "http://" + getEnv("VIDEO_REST_ADDR", "video-service:8083")
+		log.Printf("[Consul] using VIDEO_REST_ADDR fallback: %s", videoAddr)
+	}
+	// Strip the http:// prefix — VideoClient builds its own scheme
+	videoHost := strings.TrimPrefix(videoAddr, "http://")
+
+	// ── VideoService client (HTTP/REST) ───────────────────────────────────────
+	videoClient, err := svcgrpc.NewVideoClient(videoHost)
 	if err != nil {
-		log.Printf("[gRPC] VideoService client init failed: %v (continuing without it)", err)
+		log.Printf("[VideoClient] init failed: %v (continuing without it)", err)
 	} else {
-		log.Println("[gRPC] VideoService client connected")
+		log.Printf("[VideoClient] connected → %s (via Consul/fallback)", videoHost)
 		go func() {
-			for _, community := range []string{"programming", "golang", "python", "gaming", "worldnews", "science", "technology", "AskReddit", "linux", "webdev"} {
+			seededCommunities := []string{
+				"programming", "golang", "python", "gaming", "worldnews",
+				"science", "technology", "AskReddit", "linux", "webdev",
+			}
+			for _, community := range seededCommunities {
 				if err := videoClient.SyncCommunityPosts(ctx, community, pc, tc); err != nil {
-					log.Printf("[gRPC] sync r/%s: %v", community, err)
+					log.Printf("[VideoClient] sync r/%s: %v", community, err)
 				}
 			}
 		}()
 	}
 
-	userClient, err := svcgrpc.NewUserClient(getEnv("USER_GRPC_ADDR", "localhost:50051"))
+	// ── UserService gRPC client ───────────────────────────────────────────────
+	userAddr := resolver.Resolve("user")
+	if userAddr == "" {
+		userAddr = getEnv("USER_GRPC_ADDR", "user-service:50051")
+	} else {
+		// Consul returns HTTP URL; gRPC needs host:port
+		userAddr = strings.TrimPrefix(userAddr, "http://")
+	}
+	userClient, err := svcgrpc.NewUserClient(userAddr)
 	if err != nil {
 		log.Printf("[gRPC] UserService client init failed: %v (continuing without it)", err)
 	} else {
-		log.Println("[gRPC] UserService client connected")
+		log.Printf("[gRPC] UserService client connected → %s", userAddr)
 	}
+	_ = userClient
 
-	grpcPort := getEnv("GRPC_PORT", "50053")
+	// ── gRPC server ───────────────────────────────────────────────────────────
+	grpcPort := getEnv("GRPC_PORT", "50052")
 	lis, err := net.Listen("tcp", ":"+grpcPort)
 	if err != nil {
 		log.Fatalf("grpc listen: %v", err)
@@ -78,9 +112,7 @@ func main() {
 		}
 	}()
 
-
-	_ = userClient 
-
+	// ── HTTP server ───────────────────────────────────────────────────────────
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

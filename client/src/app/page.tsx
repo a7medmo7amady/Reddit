@@ -321,8 +321,13 @@ export default function Home() {
       {showCreateCommunityPopup && (
         <CreateCommunityPopup
           onClose={() => setShowCreateCommunityPopup(false)}
-          onSuccess={() => {
+          onSuccess={(community) => {
             setShowCreateCommunityPopup(false);
+            setFollowedCommunities(prev => [...prev, { id: community.id, name: community.name }]);
+            localStorage.setItem(
+              "followedCommunities",
+              [...followedCommunities.map(c => c.name), community.name].join(",")
+            );
             fetchCommunities();
           }}
         />

@@ -1,15 +1,24 @@
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./CreateCommunityPopup.module.css";
 import { getToken } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
+interface CommunityResult {
+  id: number;
+  name: string;
+  description: string;
+  memberCount: number;
+}
+
 interface CreateCommunityPopupProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (community: CommunityResult) => void;
 }
 
 export default function CreateCommunityPopup({ onClose, onSuccess }: CreateCommunityPopupProps) {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -46,7 +55,9 @@ export default function CreateCommunityPopup({ onClose, onSuccess }: CreateCommu
         return;
       }
 
-      onSuccess();
+      const community: CommunityResult = await res.json();
+      onSuccess(community);
+      router.push(`/r/${community.name}`);
     } catch (err) {
       setError("Network error. Please try again.");
       setIsLoading(false);

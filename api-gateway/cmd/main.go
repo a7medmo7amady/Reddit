@@ -115,6 +115,7 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 	{
+		protected.POST("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
 		protected.POST("/posts/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.PATCH("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))

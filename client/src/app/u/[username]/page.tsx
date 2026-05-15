@@ -59,7 +59,7 @@ function accountAge(iso: string): string {
   return `${years} year${years !== 1 ? "s" : ""}`;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
+// API calls go through buildApiUrl() which reads NEXT_PUBLIC_API_GATEWAY_URL
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -124,7 +124,7 @@ export default function UserProfilePage() {
   useEffect(() => {
     if (tab !== "posts" || !username) return;
     setPostsLoading(true);
-    fetch(`${API_URL}/posts?author=${encodeURIComponent(username as string)}&limit=50`, { cache: 'no-store' })
+    fetch(buildApiUrl(`/posts?author=${encodeURIComponent(username as string)}&limit=50`), { cache: 'no-store' })
       .then(r => r.json())
       .then(data => setUserPosts(data.posts || []))
       .catch(() => setUserPosts([]))
@@ -134,7 +134,7 @@ export default function UserProfilePage() {
   useEffect(() => {
     if (tab !== "comments" || !username) return;
     setCommentsLoading(true);
-    fetch(`${API_URL}/comments?author=${encodeURIComponent(username as string)}&limit=50`, { cache: 'no-store' })
+    fetch(buildApiUrl(`/comments?author=${encodeURIComponent(username as string)}&limit=50`), { cache: 'no-store' })
       .then(r => r.json())
       .then(data => setUserComments(data.comments || []))
       .catch(() => setUserComments([]))
