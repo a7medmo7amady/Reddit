@@ -10,6 +10,7 @@ const kafkaService = require('../services/kafka.service');
 const storageService = require('../services/storage.service');
 const imageService = require('../services/image.service');
 const banService = require('../services/ban.service');
+const consulService = require('../services/consul.service');
 const { Upload } = require('@aws-sdk/lib-storage');
 
 // ── Multer config ─────────────────────────────────────────────────────────────
@@ -62,6 +63,20 @@ router.post('/posts', uploadFields, async (req, res) => {
         }
         if (!community) {
             return res.status(400).json({ error: 'Community is required.' });
+        }
+
+        // Validate community exists — resolve user-service via Consul, fall back to api-gateway
+        try {
+            let userServiceUrl = await consulService.resolve('user');
+            if (!userServiceUrl) {
+                userServiceUrl = process.env.API_GATEWAY_URL || 'http://api-gateway:8088';
+            }
+            const commRes = await fetch(`${userServiceUrl}/communities/${community}`);
+            if (!commRes.ok) {
+                return res.status(400).json({ error: `Community r/${community} does not exist.` });
+            }
+        } catch (err) {
+            console.error(`[CreatePost] Warning: Failed to validate community: ${err.message}`);
         }
 
         const postId = uuidv4();

@@ -53,7 +53,7 @@ async function parseJson<T>(response: Response): Promise<T> {
     const message =
       data && typeof data === "object" && "error" in data
         ? String(data.error)
-        : "Chat request failed";
+        : `Chat request failed (${response.status})`;
     throw new Error(message);
   }
   return data as T;

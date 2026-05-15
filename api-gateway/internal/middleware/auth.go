@@ -15,17 +15,10 @@ func SetJWTSecret(secret string) {
 	jwtSecret = secret
 }
 
+// Auth enforces a valid JWT — aborts with 401 if absent/invalid.
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenStr := bearerToken(c.GetHeader("Authorization"))
-		if tokenStr == "" {
-			tokenStr = c.Query("access_token")
-		}
-		if tokenStr == "" {
-			if cookie, err := c.Cookie("access_token"); err == nil {
-				tokenStr = cookie
-			}
-		}
+		tokenStr := extractToken(c)
 		if tokenStr == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or malformed token"})
 			return
@@ -37,7 +30,6 @@ func Auth() gin.HandlerFunc {
 			return
 		}
 
-		// UserID falls back to JWT "sub" (Subject) if the custom "user_id" claim is absent
 		userID := claims.UserID
 		if userID == "" {
 			userID = claims.Subject
@@ -47,6 +39,41 @@ func Auth() gin.HandlerFunc {
 		c.Request.Header.Set("X-Role", claims.Role)
 		c.Next()
 	}
+}
+
+// OptionalAuth injects X-User-Id / X-Username when a valid JWT is present,
+// but lets unauthenticated requests pass through. Use on public routes that
+// still need ban/personalisation checks for logged-in users.
+func OptionalAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenStr := extractToken(c)
+		if tokenStr != "" {
+			if claims, err := jwtpkg.Verify(tokenStr, jwtSecret); err == nil {
+				userID := claims.UserID
+				if userID == "" {
+					userID = claims.Subject
+				}
+				c.Request.Header.Set("X-User-Id", userID)
+				c.Request.Header.Set("X-Username", claims.Username)
+				c.Request.Header.Set("X-Role", claims.Role)
+			}
+		}
+		c.Next()
+	}
+}
+
+// extractToken pulls the bearer token from Authorization header, query param, or cookie.
+func extractToken(c *gin.Context) string {
+	if t := bearerToken(c.GetHeader("Authorization")); t != "" {
+		return t
+	}
+	if t := c.Query("access_token"); t != "" {
+		return t
+	}
+	if cookie, err := c.Cookie("access_token"); err == nil {
+		return cookie
+	}
+	return ""
 }
 
 func bearerToken(header string) string {

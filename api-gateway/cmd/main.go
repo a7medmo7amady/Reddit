@@ -27,7 +27,6 @@ func main() {
 	middleware.SetJWTSecret(cfg.JWTSecret)
 	middleware.SetAllowedOrigin(cfg.AllowedOrigin)
 
-	// ── Redis rate limiter ────────────────────────────────────────────────────
 	if cfg.RedisAddr != "" {
 		rdb := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 		if err := rlpkg.Ping(rdb); err != nil {
@@ -38,7 +37,6 @@ func main() {
 		}
 	}
 
-	// ── Consul resolver ───────────────────────────────────────────────────────
 	resolve := staticResolver(cfg)
 	if cfg.ConsulAddr != "" {
 		r, err := consulpkg.New(cfg.ConsulAddr)
@@ -83,7 +81,10 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.Use(middleware.CORS())
 	r.Use(middleware.RateLimit())
 
-	// Health check — hits each downstream service and reports aggregate status.
+	r.NoRoute(func(c *gin.Context) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "route not found: " + c.Request.Method + " " + c.Request.URL.Path})
+	})
+
 	r.GET("/health", handler.Health(map[string]string{
 		"user":         resolve("user"),
 		"feed":         resolve("feed"),
@@ -97,34 +98,37 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.Any("/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/login/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/users/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
-
-	// Public post reads — no auth required
-	r.GET("/posts/trending", gin.WrapH(proxy.NewSingle(resolve("feed"))))
-	r.GET("/posts/feed", gin.WrapH(proxy.NewSingle(resolve("feed"))))
-	r.GET("/posts/community/*path", gin.WrapH(proxy.NewSingle(resolve("feed"))))
-	r.GET("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
-	r.GET("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/trending", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts/feed", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts/community/*path", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("feed"))))
+	r.GET("/posts", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/posts/:id", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/status", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/history", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
-	// Public media assets — images and video served directly from video-service
+	r.GET("/communities/:name", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("user"))))
+
 	r.GET("/assets/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 	{
-		// Post writes — auth required
 		protected.POST("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
 		protected.POST("/posts/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.PATCH("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.DELETE("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
-		// Comment writes — auth required
 		protected.POST("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.POST("/comments/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
+		protected.POST("/communities", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.GET("/communities/me", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.POST("/communities/:name/join", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.POST("/communities/:name/leave", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.GET("/communities/:name/membership", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.Any("/notifications/*path", gin.WrapH(proxy.NewSingle(resolve("notification"))))

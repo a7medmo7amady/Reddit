@@ -2,62 +2,106 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+
 	"feed-service/internal/cache"
 	"feed-service/internal/model"
-	videopb "feed-service/pkg/proto/video"
-	"log"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type VideoClient struct {
-	client videopb.VideoServiceClient
+	addr string
 }
 
 func NewVideoClient(addr string) (*VideoClient, error) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, err
-	}
-	return &VideoClient{client: videopb.NewVideoServiceClient(conn)}, nil
+	return &VideoClient{addr: addr}, nil
 }
 
-// SyncCommunityPosts fetches posts from VideoService and writes them into PostCache and TrendingCache.
+// SyncCommunityPosts fetches posts from VideoService via HTTP and writes them into PostCache and TrendingCache.
 func (v *VideoClient) SyncCommunityPosts(ctx context.Context, community string, pc *cache.PostCache, tc *cache.TrendingCache) error {
-	resp, err := v.client.ListPosts(ctx, &videopb.ListPostsRequest{
-		Community: community,
-		Limit:     50,
-		Page:      1,
-	})
+	u := fmt.Sprintf("http://%s/posts?community=%s&limit=50&page=1", v.addr, url.QueryEscape(community))
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return err
 	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
 
-	for _, p := range resp.Posts {
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("VideoService returned status %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Posts []struct {
+			ID        string `json:"id"`
+			Title     string `json:"title"`
+			Body      string `json:"body"`
+			Community string `json:"community"`
+			AuthorId  string `json:"authorId"`
+		} `json:"posts"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return err
+	}
+
+	for _, p := range data.Posts {
 		post := model.Post{
-			StringID:  p.Id,
+			StringID:  p.ID,
 			Title:     p.Title,
 			Body:      p.Body,
-			Community: p.CommunityId,
+			Community: p.Community,
 			Author:    p.AuthorId,
 		}
 		if err := pc.Add(ctx, post); err != nil {
-			log.Printf("[VideoClient] PostCache write error for post %s: %v", p.Id, err)
+			log.Printf("[VideoClient] PostCache write error for post %s: %v", p.ID, err)
 		}
 		if err := tc.AddIfNotExists(ctx, post); err != nil {
-			log.Printf("[VideoClient] TrendingCache write error for post %s: %v", p.Id, err)
+			log.Printf("[VideoClient] TrendingCache write error for post %s: %v", p.ID, err)
 		}
 	}
-	log.Printf("[VideoClient] synced %d posts for r/%s", len(resp.Posts), community)
+	log.Printf("[VideoClient] HTTP synced %d posts for r/%s", len(data.Posts), community)
 	return nil
 }
 
-// GetPost fetches a single post by ID from VideoService.
-func (v *VideoClient) GetPost(ctx context.Context, postID string) (*videopb.Post, error) {
-	resp, err := v.client.GetPost(ctx, &videopb.GetPostRequest{PostId: postID})
+// GetPost fetches a single post by ID from VideoService via HTTP.
+func (v *VideoClient) GetPost(ctx context.Context, postID string) (*model.Post, error) {
+	u := fmt.Sprintf("http://%s/posts/%s", v.addr, url.QueryEscape(postID))
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
 	if err != nil {
 		return nil, err
 	}
-	return resp.Post, nil
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("VideoService returned status %d", resp.StatusCode)
+	}
+
+	var p struct {
+		ID        string `json:"id"`
+		Title     string `json:"title"`
+		Body      string `json:"body"`
+		Community string `json:"community"`
+		AuthorId  string `json:"authorId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&p); err != nil {
+		return nil, err
+	}
+
+	return &model.Post{
+		StringID:  p.ID,
+		Title:     p.Title,
+		Body:      p.Body,
+		Community: p.Community,
+		Author:    p.AuthorId,
+	}, nil
 }

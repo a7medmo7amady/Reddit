@@ -40,6 +40,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/users/id/{userId}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users/{username}").permitAll()
+                        // Community reads are public; writes require auth
+                        .requestMatchers(HttpMethod.GET, "/communities/{name}").permitAll()
+                        .requestMatchers("/communities/**").authenticated()
                         // Everything else requires auth
                         .anyRequest().authenticated()
                 )

@@ -113,11 +113,14 @@ services:
       GRPC_PORT: "50052"
       REDIS_ADDR: "redis:6379"
       KAFKA_BROKERS: "kafka:9092"
-      VIDEO_GRPC_ADDR: "video-service:50054"
+      CONSUL_ADDR: "consul:8500"
+      VIDEO_REST_ADDR: "video-service:8083"
+      USER_SERVICE_ADDR: "user-service:8080"
       USER_GRPC_ADDR: "user-service:50051"
     depends_on:
       - redis
       - kafka
+      - consul
     restart: unless-stopped
 
   user-service:
@@ -128,16 +131,31 @@ services:
       - .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reddit_clone
+      SPRING_DATA_MONGODB_URI: mongodb://mongo:27017/reddit_clone
+      SPRING_DATA_MONGODB_HOST: mongo
+      SPRING_DATA_MONGODB_PORT: "27017"
+      SPRING_DATA_MONGODB_DATABASE: reddit_clone
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
       MONGO_HOST: mongo
       MONGO_PORT: "27017"
       MONGO_DB: reddit_clone
       KAFKA_BROKERS: kafka:9092
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # Force the JVM to pick up the correct MongoDB URI regardless of baked properties
+      JAVA_TOOL_OPTIONS: >-
+        -Dspring.data.mongodb.uri=mongodb://mongo:27017/reddit_clone
+        -Dspring.data.redis.host=redis
+        -Dspring.data.redis.port=6379
     depends_on:
-      - postgres
-      - mongo
-      - kafka
+      postgres:
+        condition: service_started
+      mongo:
+        condition: service_started
+      kafka:
+        condition: service_healthy
     restart: unless-stopped
+
 
   chat-service:
     build: ./chat-service
@@ -170,23 +188,25 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     volumes:
       - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
 
-  audit-service:
-    build: ./audit-service
-    depends_on:
-      - kafka
-      - zookeeper
-    restart: unless-stopped
 
   search-service:
     build:
@@ -248,6 +268,7 @@ services:
       - "8083:8083"
     environment:
       - PORT=8083
+      - SERVICE_NAME=video
       - MONGODB_URI=mongodb://mongo:27017/upload_service
       - KAFKA_BROKERS=kafka:9092
       - S3_ENDPOINT=http://minio:9000
@@ -256,6 +277,10 @@ services:
       - S3_STAGING_BUCKET=staging
       - S3_SERVING_BUCKET=serving
       - S3_IMAGES_BUCKET=images
+      - CONSUL_ADDR=consul:8500
+      - USER_SERVICE_ADDR=user-service:8080
+      - API_GATEWAY_URL=http://api-gateway:8088
+      - REDIS_URL=redis://redis:6379
     depends_on:
       kafka:
         condition: service_started
@@ -263,6 +288,8 @@ services:
         condition: service_healthy
       mongo:
         condition: service_started
+      consul:
+        condition: service_healthy
     restart: unless-stopped
   notification-service:
     build:

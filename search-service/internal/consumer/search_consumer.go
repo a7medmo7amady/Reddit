@@ -38,7 +38,7 @@ func NewSearchConsumer(searchService service.SearchService) (*SearchConsumer, er
 }
 
 func (c *SearchConsumer) Start(ctx context.Context) {
-	topics := []string{"post.created", "post.deleted", "comment.created", "comment.deleted"}
+	topics := []string{"post.created", "post.deleted", "comment.created", "comment.deleted", "community.created"}
 
 	for _, topic := range topics {
 		partitionConsumer, err := c.consumer.ConsumePartition(topic, 0, sarama.OffsetNewest)
@@ -84,6 +84,11 @@ func (c *SearchConsumer) handleMessage(ctx context.Context, topic string, value 
 		var msg struct{ ID string `json:"id"` }
 		if err := json.Unmarshal(value, &msg); err == nil {
 			c.searchService.DeleteComment(ctx, msg.ID)
+		}
+	case "community.created":
+		var community model.Community
+		if err := json.Unmarshal(value, &community); err == nil {
+			c.searchService.IndexCommunity(ctx, community)
 		}
 	}
 }
