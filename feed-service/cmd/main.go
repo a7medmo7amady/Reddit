@@ -45,8 +45,8 @@ func main() {
 	kafka.StartPostConsumer(ctx, brokers, tc, pc)
 	kafka.StartBanConsumer(ctx, brokers, bc)
 
-	// ── gRPC clients ──────────────────────────────────────────────────────────
-	videoClient, err := svcgrpc.NewVideoClient(getEnv("VIDEO_GRPC_ADDR", "localhost:50054"))
+	// ── HTTP clients ──────────────────────────────────────────────────────────
+	videoClient, err := svcgrpc.NewVideoClient(getEnv("VIDEO_REST_ADDR", "localhost:8083"))
 	if err != nil {
 		log.Printf("[gRPC] VideoService client init failed: %v (continuing without it)", err)
 	} else {

@@ -64,6 +64,17 @@ router.post('/posts', uploadFields, async (req, res) => {
             return res.status(400).json({ error: 'Community is required.' });
         }
 
+        // Validate community exists in user-service
+        try {
+            const apiGatewayUrl = process.env.API_GATEWAY_URL || 'http://api-gateway:8088';
+            const commRes = await fetch(`${apiGatewayUrl}/communities/${community}`);
+            if (!commRes.ok) {
+                return res.status(400).json({ error: `Community r/${community} does not exist.` });
+            }
+        } catch (err) {
+            console.error(`[CreatePost] Warning: Failed to validate community with gateway: ${err.message}`);
+        }
+
         const postId = uuidv4();
         const authorId = req.headers['x-user-id'] || '';
         const author   = req.headers['x-username'] || '';

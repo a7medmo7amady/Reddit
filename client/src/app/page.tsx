@@ -9,6 +9,7 @@ import { saveToken, getToken, logout } from "@/lib/auth";
 import { getMyUsername } from "@/lib/jwt";
 import { buildApiUrl } from "@/lib/config";
 import AuthPopup from "@/components/AuthPopup";
+import CreateCommunityPopup from "@/components/CreateCommunityPopup";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
@@ -66,6 +67,7 @@ export default function Home() {
   const searchParams = useSearchParams();
   const [isAuthed, setIsAuthed] = useState(false);
   const [showAuthPopup, setShowAuthPopup] = useState(false);
+  const [showCreateCommunityPopup, setShowCreateCommunityPopup] = useState(false);
   const tabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<TabMode>(
     tabParam === "followed" ? "followed" : tabParam === "trending" ? "trending" : "home"
@@ -74,10 +76,28 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState<string | null>(null);
   const [votedPosts, setVotedPosts] = useState<Record<string, number>>({});
+  const [followedCommunities, setFollowedCommunities] = useState<{ id: number; name: string }[]>([]);
 
   useEffect(() => {
     setUsername(getMyUsername());
   }, [isAuthed]);
+
+  const fetchCommunities = useCallback(() => {
+    if (!isAuthed) { setFollowedCommunities([]); return; }
+    const token = getToken();
+    if (!token) return;
+    fetch(`${API_URL}/communities/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { id: number; name: string }[]) => {
+        setFollowedCommunities(data);
+        localStorage.setItem("followedCommunities", data.map(c => c.name).join(","));
+      })
+      .catch(() => {});
+  }, [isAuthed]);
+
+  useEffect(() => {
+    fetchCommunities();
+  }, [fetchCommunities]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -270,8 +290,25 @@ export default function Home() {
 
           <div className={styles.sidebarDivider} />
 
+          {isAuthed && followedCommunities.length > 0 && (
+            <div className={styles.sidebarSection}>
+              <div className={styles.sidebarSectionTitle}>COMMUNITIES</div>
+              <ul className={styles.navList}>
+                {followedCommunities.map(c => (
+                  <li key={c.id}>
+                    <Link href={`/r/${c.name}`} className={styles.navItem}>
+                      <span className={styles.communityDot} />
+                      <span>r/{c.name}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <div className={styles.sidebarDivider} />
+            </div>
+          )}
+
           {isAuthed && (
-            <button className={styles.createCommunityBtn} onClick={() => setShowAuthPopup(false)}>
+            <button className={styles.createCommunityBtn} onClick={() => setShowCreateCommunityPopup(true)}>
               + Create Community
             </button>
           )}
@@ -408,6 +445,16 @@ export default function Home() {
         <AuthPopup
           onClose={() => setShowAuthPopup(false)}
           onSuccess={() => { setShowAuthPopup(false); setIsAuthed(true); }}
+        />
+      )}
+
+      {showCreateCommunityPopup && (
+        <CreateCommunityPopup
+          onClose={() => setShowCreateCommunityPopup(false)}
+          onSuccess={() => {
+            setShowCreateCommunityPopup(false);
+            fetchCommunities();
+          }}
         />
       )}
     </div>

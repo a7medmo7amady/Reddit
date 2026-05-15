@@ -113,22 +113,28 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.GET("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
+	// Public community reads — no auth required
+	r.GET("/communities/:name", gin.WrapH(proxy.NewSingle(resolve("user"))))
+
 	// Public media assets — images and video served directly from video-service
 	r.GET("/assets/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
 	protected := r.Group("/")
 	protected.Use(middleware.Auth())
 	{
-		// Post writes — auth required
-		protected.POST("/posts", gin.WrapH(proxy.NewSingle(resolve("video"))))
+
 		protected.POST("/posts/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.PATCH("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.DELETE("/posts/:id", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
-		// Comment writes — auth required
 		protected.POST("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.POST("/comments/:id/vote", gin.WrapH(proxy.NewSingle(resolve("video"))))
 
+		protected.POST("/communities", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.GET("/communities/me", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.POST("/communities/:name/join", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.POST("/communities/:name/leave", gin.WrapH(proxy.NewSingle(resolve("user"))))
+		protected.GET("/communities/:name/membership", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.Any("/notifications/*path", gin.WrapH(proxy.NewSingle(resolve("notification"))))
