@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"notification-service/internal/model"
 	"notification-service/internal/service"
 	"strconv"
 
@@ -51,4 +52,39 @@ func (h *NotificationHandler) MarkRead(c *gin.Context) {
 func (h *NotificationHandler) UpdatePrefs(c *gin.Context) {
 	// ... update preferences
 	c.JSON(http.StatusOK, gin.H{"message": "Preferences updated"})
+}
+
+func (h *NotificationHandler) SendNotification(c *gin.Context) {
+	var req struct {
+		UserID  string `json:"user_id" binding:"required"`
+		Title   string `json:"title" binding:"required"`
+		Message string `json:"message" binding:"required"`
+		Link    string `json:"link"`
+		Type    string `json:"type"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	notificationType := model.NotificationType(req.Type)
+	if notificationType == "" {
+		notificationType = model.TypeReply
+	}
+
+	n := &model.Notification{
+		UserID:  req.UserID,
+		Title:   req.Title,
+		Message: req.Message,
+		Link:    req.Link,
+		Type:    notificationType,
+	}
+
+	if err := h.service.CreateNotification(c.Request.Context(), n); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Notification sent"})
 }

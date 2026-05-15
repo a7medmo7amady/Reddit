@@ -66,17 +66,29 @@ func main() {
 		api.GET("/recent", h.GetRecent)
 		api.POST("/mark-read", h.MarkRead)
 		api.PATCH("/preferences", h.UpdatePrefs)
+		api.POST("/send", h.SendNotification)
 	}
 
-	// WebSocket endpoint
-	r.GET("/ws", func(c *gin.Context) {
+	// Top-level aliases for gateway compatibility
+	notif := r.Group("/notifications")
+	{
+		notif.GET("/recent", h.GetRecent)
+		notif.POST("/mark-read", h.MarkRead)
+		notif.PATCH("/preferences", h.UpdatePrefs)
+		notif.POST("/send", h.SendNotification)
+	}
+
+	// WebSocket endpoint (root and gateway-compatible path)
+	wsHandler := func(c *gin.Context) {
 		userID := c.Query("user_id") // In production, get from auth token
 		if userID == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "user_id is required"})
 			return
 		}
 		handleWebSocket(hub, svc, userID, c.Writer, c.Request)
-	})
+	}
+	r.GET("/ws", wsHandler)
+	r.GET("/notifications/ws", wsHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { saveToken, getToken, logout } from "@/lib/auth";
@@ -10,6 +10,7 @@ import { getMyUsername } from "@/lib/jwt";
 import AuthPopup from "@/components/AuthPopup";
 import CreateCommunityPopup from "@/components/CreateCommunityPopup";
 import PostCard, { Post } from "@/components/PostCard";
+import NotificationBell from "@/components/NotificationBell";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
@@ -29,7 +30,9 @@ const PAGE_TAB: Record<string, "home" | "trending" | "followed"> = {
 
 export default function Home() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [isAuthed, setIsAuthed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [showAuthPopup, setShowAuthPopup] = useState(false);
   const [showCreateCommunityPopup, setShowCreateCommunityPopup] = useState(false);
   const tabParam = searchParams.get("tab");
@@ -188,13 +191,25 @@ export default function Home() {
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="text" placeholder="Search Reddit" className={styles.searchInput} />
+            <input
+              type="text"
+              placeholder="Search Reddit"
+              className={styles.searchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim()) {
+                  router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                }
+              }}
+            />
           </div>
         </div>
 
         <div className={styles.headerRight}>
           {isAuthed && username ? (
             <div className={styles.userMenu}>
+              <NotificationBell />
               <Link href="/chat" className={styles.chatIcon} title="Chat">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>

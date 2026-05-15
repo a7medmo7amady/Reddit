@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const postRoutes    = require('./routes/posts');
 const commentRoutes = require('./routes/comments');
 const assetRoutes   = require('./routes/assets');
+const searchRoutes  = require('./routes/search');
 const kafkaService  = require('./services/kafka.service');
 const transcoderService = require('./services/transcoder.service');
 const storageService    = require('./services/storage.service');
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use('/', postRoutes);
 app.use('/', commentRoutes);
 app.use('/', assetRoutes);
+app.use('/', searchRoutes);
 app.get('/health', (req, res) => res.json({ status: 'OK', service: 'video-service' }));
 
 async function start() {

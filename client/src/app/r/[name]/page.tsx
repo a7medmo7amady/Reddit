@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { getToken, saveToken, logout } from "@/lib/auth";
 import { getMyUsername } from "@/lib/jwt";
 import AuthPopup from "@/components/AuthPopup";
 import PostCard, { Post } from "@/components/PostCard";
+import NotificationBell from "@/components/NotificationBell";
 import styles from "@/app/page.module.css";
 import communityStyles from "./community.module.css";
 
@@ -24,6 +25,8 @@ export default function CommunityPage() {
   const params = useParams();
   const name = params?.name as string;
 
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
   const [isAuthed, setIsAuthed] = useState(false);
   const [showAuthPopup, setShowAuthPopup] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
@@ -181,12 +184,24 @@ export default function CommunityPage() {
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
-            <input type="text" placeholder="Search Reddit" className={styles.searchInput} />
+            <input
+              type="text"
+              placeholder="Search Reddit"
+              className={styles.searchInput}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim()) {
+                  router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+                }
+              }}
+            />
           </div>
         </div>
         <div className={styles.headerRight}>
           {isAuthed && username ? (
             <div className={styles.userMenu}>
+              <NotificationBell />
               <Link href="/chat" className={styles.chatIcon} title="Chat">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
