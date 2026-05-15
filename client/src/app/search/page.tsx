@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getToken } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL ?? "http://localhost:8088";
 
@@ -19,11 +18,7 @@ export default function SearchPage() {
     setLoading(true);
     setError("");
 
-    const headers: HeadersInit = {};
-    const token = getToken();
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-
-    fetch(`${API_URL}/search?q=${encodeURIComponent(q)}`, { headers })
+    fetch(`${API_URL}/search?q=${encodeURIComponent(q)}`)
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
         return res.json();

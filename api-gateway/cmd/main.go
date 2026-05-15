@@ -93,7 +93,7 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		"notification": resolve("notification"),
 		"chat":         resolve("chat"),
 	}))
-	
+
 	r.Any("/auth/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
 	r.Any("/login/oauth2/*path", gin.WrapH(proxy.NewSingle(resolve("user"))))
@@ -107,6 +107,7 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 	r.GET("/posts/:id/history", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/posts/:id/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
 	r.GET("/comments", gin.WrapH(proxy.NewSingle(resolve("video"))))
+	r.GET("/search", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("search"))))
 
 	r.GET("/communities/:name", middleware.OptionalAuth(), gin.WrapH(proxy.NewSingle(resolve("user"))))
 
@@ -129,7 +130,6 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 		protected.POST("/communities/:name/join", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.POST("/communities/:name/leave", gin.WrapH(proxy.NewSingle(resolve("user"))))
 		protected.GET("/communities/:name/membership", gin.WrapH(proxy.NewSingle(resolve("user"))))
-		protected.GET("/search", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/search/*path", gin.WrapH(proxy.NewSingle(resolve("search"))))
 		protected.Any("/video/*path", gin.WrapH(proxy.NewSingle(resolve("video"))))
 		protected.Any("/notifications/*path", gin.WrapH(proxy.NewSingle(resolve("notification"))))
@@ -138,7 +138,6 @@ func buildHTTPServer(cfg *config.Config, resolve func(string) string) *http.Serv
 
 	return &http.Server{Addr: ":" + cfg.Port, Handler: r}
 }
-
 
 func buildGRPCServer(cfg *config.Config) *http.Server {
 	mux := http.NewServeMux()
@@ -158,7 +157,6 @@ func buildGRPCServer(cfg *config.Config) *http.Server {
 		Handler: h2c.NewHandler(mux, &http2.Server{}),
 	}
 }
-
 
 func staticResolver(cfg *config.Config) func(string) string {
 	m := map[string]string{
