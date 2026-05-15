@@ -53,6 +53,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/users/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/users/id/{userId}").permitAll()
                         .requestMatchers(HttpMethod.GET, "/users/{username}").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/search", "/search/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/communities/{name}").permitAll()
                         .requestMatchers("/communities/**").authenticated()
                         .anyRequest().authenticated()

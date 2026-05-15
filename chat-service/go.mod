@@ -1,6 +1,6 @@
 module chat-service
 
-go 1.22
+go 1.26
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0

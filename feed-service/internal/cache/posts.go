@@ -12,7 +12,6 @@ import (
 const postTTL = 24 * time.Hour
 const maxPostsPerCommunity = 100
 
-
 type PostCache struct {
 	rdb *redis.Client
 }
@@ -33,7 +32,18 @@ func (c *PostCache) Add(ctx context.Context, post model.Post) error {
 
 	score := float64(time.Now().UnixMilli())
 	key := communityKey(post.Community)
+	existing, err := c.rdb.ZRange(ctx, key, 0, -1).Result()
+	if err != nil && err != redis.Nil {
+		return err
+	}
+
 	pipe := c.rdb.Pipeline()
+	for _, value := range existing {
+		var cached model.Post
+		if json.Unmarshal([]byte(value), &cached) == nil && cached.StringID == post.StringID {
+			pipe.ZRem(ctx, key, value)
+		}
+	}
 	pipe.ZAdd(ctx, key, redis.Z{Score: score, Member: string(data)})
 	pipe.ZRemRangeByRank(ctx, key, 0, int64(-maxPostsPerCommunity-1))
 	pipe.Expire(ctx, key, postTTL)
@@ -103,9 +113,16 @@ func (c *PostCache) GetByID(ctx context.Context, id string) (model.Post, error) 
 
 func decodePosts(vals []string) []model.Post {
 	posts := make([]model.Post, 0, len(vals))
+	seen := make(map[string]struct{}, len(vals))
 	for _, v := range vals {
 		var p model.Post
 		if json.Unmarshal([]byte(v), &p) == nil {
+			if p.StringID != "" {
+				if _, ok := seen[p.StringID]; ok {
+					continue
+				}
+				seen[p.StringID] = struct{}{}
+			}
 			posts = append(posts, p)
 		}
 	}

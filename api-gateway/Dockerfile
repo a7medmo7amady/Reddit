@@ -1,16 +1,14 @@
 FROM golang:1.26-alpine AS builder
+RUN apk add --no-cache git
 WORKDIR /app
 
 COPY go.mod go.sum ./
-# Allow Go toolchain directive to be honoured without failing
-ENV GOTOOLCHAIN=auto
-# Use BuildKit inline cache for modules (speeds up rebuilds)
-RUN --mount=type=cache,target=/root/go/pkg/mod \
-    go mod download
+# Use only the toolchain baked into the builder image.
+ENV GOTOOLCHAIN=local
+RUN go mod download
 
 COPY . .
-RUN --mount=type=cache,target=/root/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=linux go build -o gateway ./cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o gateway ./cmd/main.go
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates

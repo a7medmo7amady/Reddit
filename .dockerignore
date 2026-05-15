@@ -1,0 +1,29 @@
+# VCS / editor metadata
+.git
+.gitignore
+.idea
+.vscode
+
+# Local environment files
+.env
+.env.*
+
+# Dependency caches and build outputs
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.gradle
+**/target
+**/bin
+**/tmp
+**/temp
+
+# Large frontend tree is not needed by the root-context Go service builds.
+client
+
+# Runtime / local artifacts
+*.log
+*.pid
+*.tmp
+

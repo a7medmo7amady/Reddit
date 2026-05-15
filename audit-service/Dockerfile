@@ -1,4 +1,6 @@
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
+RUN apk add --no-cache git
+ENV GOTOOLCHAIN=local
 WORKDIR /app
 
 COPY go.mod go.sum ./

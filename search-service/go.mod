@@ -1,6 +1,6 @@
 module search-service
 
-go 1.25.9
+go 1.26
 
 require (
 	github.com/IBM/sarama v1.48.2

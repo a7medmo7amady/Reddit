@@ -1,6 +1,6 @@
 module notification-service
 
-go 1.25.0
+go 1.26
 
 require (
 	github.com/IBM/sarama v1.48.1 // indirect
