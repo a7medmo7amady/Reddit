@@ -1,9 +1,10 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
+RUN apk add --no-cache git
 WORKDIR /app
 
 COPY go.mod go.sum ./
-# Allow the Go toolchain directive in go.mod to download a newer toolchain if needed
-ENV GOTOOLCHAIN=auto
+# Use only the toolchain baked into the builder image.
+ENV GOTOOLCHAIN=local
 RUN go mod download
 
 COPY . .

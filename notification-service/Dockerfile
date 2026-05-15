@@ -1,8 +1,9 @@
 # Stage 1: Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
+ENV GOTOOLCHAIN=local
 
 # Install protoc and go plugins
-RUN apk add --no-cache protobuf protobuf-dev
+RUN apk add --no-cache git protobuf protobuf-dev
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
