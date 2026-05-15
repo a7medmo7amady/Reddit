@@ -39,19 +39,25 @@ export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState<string | null>(null);
-  const [followedCommunities, setFollowedCommunities] = useState<{ id: number; name: string }[]>([]);
+  const [followedCommunities, setFollowedCommunities] = useState<{ id: number; name: string }[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem("followedCommunities");
+    if (!stored) return [];
+    return stored.split(",").filter(Boolean).map((name, i) => ({ id: -(i + 1), name }));
+  });
 
   useEffect(() => {
     setUsername(getMyUsername());
   }, [isAuthed]);
 
   const fetchCommunities = useCallback(() => {
-    if (!isAuthed) { setFollowedCommunities([]); return; }
+    if (!isAuthed) return;
     const token = getToken();
     if (!token) return;
     fetch(`${API_URL}/communities/me`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: { id: number; name: string }[]) => {
+      .then(r => r.ok ? r.json() : null)
+      .then((data: { id: number; name: string }[] | null) => {
+        if (!data) return;
         setFollowedCommunities(data);
         localStorage.setItem("followedCommunities", data.map(c => c.name).join(","));
       })
@@ -150,7 +156,12 @@ export default function Home() {
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
-  const handleLogout = async () => { await logout(); setIsAuthed(false); };
+  const handleLogout = async () => {
+    await logout();
+    setIsAuthed(false);
+    setFollowedCommunities([]);
+    localStorage.removeItem("followedCommunities");
+  };
 
   const handleTabClick = (tab: TabMode) => {
     if (tab === "followed" && !isAuthed) { setShowAuthPopup(true); return; }
