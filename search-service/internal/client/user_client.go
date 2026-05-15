@@ -21,6 +21,14 @@ type userClient struct {
 	client  *http.Client
 }
 
+type userServiceUser struct {
+	ID        int64  `json:"id"`
+	Username  string `json:"username"`
+	Avatar    string `json:"avatar"`
+	Karma     int    `json:"karma"`
+	CreatedAt string `json:"createdAt"`
+}
+
 func NewUserClient() UserClient {
 	baseURL := os.Getenv("USER_SERVICE_URL")
 	if baseURL == "" {
@@ -50,10 +58,35 @@ func (c *userClient) SearchUsers(ctx context.Context, query string, limit, page 
 		return nil, 0, fmt.Errorf("user-service returned %d: %s", resp.StatusCode, string(body))
 	}
 
-	var users []model.User
-	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+	var serviceUsers []userServiceUser
+	if err := json.NewDecoder(resp.Body).Decode(&serviceUsers); err != nil {
 		return nil, 0, err
 	}
 
+	users := make([]model.User, 0, len(serviceUsers))
+	for _, user := range serviceUsers {
+		users = append(users, model.User{
+			ID:        strconv.FormatInt(user.ID, 10),
+			Username:  user.Username,
+			AvatarURL: user.Avatar,
+			Karma:     user.Karma,
+			CreatedAt: parseUserCreatedAt(user.CreatedAt),
+		})
+	}
+
 	return users, int64(len(users)), nil
+}
+
+func parseUserCreatedAt(value string) time.Time {
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05",
+	} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed
+		}
+	}
+	return time.Time{}
 }

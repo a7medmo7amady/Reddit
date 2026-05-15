@@ -318,6 +318,24 @@ router.patch('/posts/:id', async (req, res) => {
             updatedPost = await PostModel.update(req.params.id, regularUpdates);
         }
 
+        // Refresh feed-service's cached copy of the post. Feed cache treats this
+        // event as an upsert, so edits replace the existing community-feed item.
+        await kafkaService.publish('post', {
+            id:           updatedPost.id,
+            title:        updatedPost.title,
+            body:         updatedPost.body,
+            community:    updatedPost.community,
+            authorId:     updatedPost.authorId,
+            author:       updatedPost.author,
+            type:         updatedPost.video ? 'video' : (updatedPost.images?.length ? 'image' : (updatedPost.url ? 'link' : 'text')),
+            upvotes:      updatedPost.upvotes,
+            downvotes:    updatedPost.downvotes,
+            commentCount: updatedPost.commentCount,
+            createdAt:    updatedPost.createdAt,
+            images:       updatedPost.images || [],
+            video:        updatedPost.video ? { status: updatedPost.video.status, playbackUrl: updatedPost.video.playbackUrl || '' } : null,
+        });
+
         res.json(updatedPost);
     } catch (error) {
         res.status(500).json({ error: error.message });
